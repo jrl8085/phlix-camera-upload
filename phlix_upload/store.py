@@ -257,6 +257,19 @@ class Store:
             row = self._db.execute("SELECT sha256 FROM assets WHERE relpath = ? LIMIT 1", (relpath,)).fetchone()
         return row["sha256"] if row else None
 
+    def first_device_at(self, relpath: str, sha256: str) -> str | None:
+        """The device whose upload put this content at `relpath`.
+
+        Every later record of the same file, from that device or another,
+        points at the same path; the first one is the upload that wrote it.
+        """
+        with self._lock:
+            row = self._db.execute(
+                "SELECT device_id FROM assets WHERE relpath = ? AND sha256 = ? ORDER BY rowid LIMIT 1",
+                (relpath, sha256),
+            ).fetchone()
+        return row["device_id"] if row else None
+
     def record_asset(self, device_id: str, key: str, sha256: str, relpath: str, size: int,
                      kind: str | None, created: str | None) -> None:
         with self._lock:

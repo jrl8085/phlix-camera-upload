@@ -279,9 +279,20 @@ class UploadTests(unittest.TestCase):
             # It is told the photo is there, and not where the other phone keeps it.
             self.assertEqual((status, body["status"], body["path"]), (200, "duplicate", ""))
             self.assertEqual(len(helper.files()), 1)
-            # The phone the file belongs to may know its own path.
-            status, body, _ = helper.upload(first, key(3), b"shared library photo")
-            self.assertEqual((status, body["status"], body["path"]), (200, "duplicate", stored["path"]))
+            # Nor when it sends the photo again under the same key, as a phone
+            # does when the first answer was lost on the way.
+            status, body, _ = helper.upload(second, key(2), b"shared library photo")
+            self.assertEqual((status, body["status"], body["path"]), (200, "duplicate", ""))
+            # Nor after it asked about the photo by its checksum.
+            sha = hashlib.sha256(b"shared library photo").hexdigest()
+            helper.request("POST", "/api/v1/assets/check", {"items": [{"key": key(4), "sha256": sha}]}, token=second)
+            status, body, _ = helper.upload(second, key(4), b"shared library photo")
+            self.assertEqual((status, body["status"], body["path"]), (200, "duplicate", ""))
+            # The phone the file belongs to may know its own path, under any key
+            # and however often it asks.
+            for number in (3, 3, 1):
+                status, body, _ = helper.upload(first, key(number), b"shared library photo")
+                self.assertEqual((status, body["status"], body["path"]), (200, "duplicate", stored["path"]))
             # ...and the second phone now knows it need not send it.
             _, known, _ = helper.request("POST", "/api/v1/assets/check", {"items": [key(2)]}, token=second)
             self.assertEqual(known["known"], [key(2)])

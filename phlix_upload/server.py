@@ -711,17 +711,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         earlier = app.store.asset(device.id, key)
         if earlier is not None and app.storage.exists(earlier.relpath):
             _remove(temp_path)
-            return earlier.relpath, False, True
+            # Its record may point at a file that another phone stored.
+            return earlier.relpath, False, self._stored_by(device, earlier.relpath, earlier.sha256)
         # The same content from another phone, or under another key.
         twin = self._stored_twin(sha256)
         if twin is not None:
             _remove(temp_path)
             app.store.record_asset(device.id, key, sha256, twin.relpath, size, kind, created_text or None)
-            return twin.relpath, False, twin.device_id == device.id
+            return twin.relpath, False, self._stored_by(device, twin.relpath, sha256)
         relpath, stored = app.storage.place(temp_path, device.folder, filename, created, sha256, size,
                                             app.store.sha_at_path)
         app.store.record_asset(device.id, key, sha256, relpath, size, kind, created_text or None)
         return relpath, stored, True
+
+    def _stored_by(self, device: Device, relpath: str, sha256: str) -> bool:
+        """Whether the file at `relpath` was put there by this device's own upload."""
+        return self.app.store.first_device_at(relpath, sha256) == device.id
 
 
 def health_report(app: App) -> dict:
