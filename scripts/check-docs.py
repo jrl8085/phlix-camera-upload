@@ -291,12 +291,22 @@ def slug(heading: str) -> str:
     return re.sub(r"[^a-z0-9 _-]", "", heading.strip().lower().replace("`", "")).replace(" ", "-")
 
 
+# Headings of the README that pages outside this repository link to: the setup guide on the
+# website (phlixapp.com/camera-upload/) and the notes of the releases. Renaming one of them
+# breaks a link that no check here can see.
+KEPT_README_ANCHORS = ("install", "settings", "the-same-with-docker-run", "what-the-beta-does",
+                       "what-the-beta-does-not-do")
+
+
 def check_links() -> None:
     """Links between the files of this repository lead somewhere."""
     anchors = {}
     for path in DOCUMENTS:
         headings = re.findall(r"^#{1,6} (.+)$", re.sub(r"```.*?```", "", read(path), flags=re.S), re.M)
         anchors[path] = {slug(heading) for heading in headings}
+    for anchor in KEPT_README_ANCHORS:
+        if anchor not in anchors["README.md"]:
+            wrong(f"README.md: the heading #{anchor} is gone, and pages outside this repository link to it")
     for path in PACKAGING:
         text = read(path)
         if path in DOCUMENTS:

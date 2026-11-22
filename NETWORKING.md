@@ -2,6 +2,8 @@
 
 Most homes need nothing on this page: the helper works as it comes. Read on if Phlix says it cannot find the helper, or if your server's network is set up in a special way.
 
+Camera Upload is a beta feature of the Phlix app. The whole setup, step by step and with pictures, is in the setup guide: https://phlixapp.com/camera-upload/
+
 ## How the app finds the helper
 
 - Phlix tries one address by itself: your Plex server's own address on your home network, on port 7459.
@@ -302,6 +304,8 @@ A VPN from outside into your home does not help: Phlix uploads only on your home
 
 Most routers hand out addresses for a limited time, and the server can get a new one. Phlix can then lose the helper, above all when you typed the address into the app. Give the server a fixed address: in the router, make a DHCP reservation for it.
 
+After the address has changed, a paired phone looks for the helper again by itself, at the new address of Plex. If it does not find the helper, for example because you typed the address when you set it up, the phone has to connect again. Choose Disconnect on the Camera Upload screen. Then tap Check for the Helper and connect as you did the first time. The phone keeps its folder, and nothing is uploaded twice. Phlix asks again what to back up, with the choices you made before already set.
+
 ### Two routers, one behind the other
 
 If your home has a second router behind the first, each one makes its own network. This is also named double NAT. Put the phone and the server on the same network. Or set the second router to access point mode, also named bridge mode, so that your home has one network.
@@ -316,8 +320,9 @@ Run `docker exec phlix-camera-upload python -m phlix_upload doctor` first. It fi
 | Phlix says "iOS is keeping Phlix off your local network". | The Local Network permission is off for Phlix. | On the iPhone, open Settings > Apps > Phlix and switch Local Network on. |
 | Phlix cannot find the helper, and the `curl` command answers `ok`. | The phone may not reach devices at home. | Leave guest Wi-Fi. Switch a VPN app off. Check the Local Network switch from the row above. |
 | Phlix cannot find the helper, the `curl` command answers `ok`, and the phone is allowed. | The helper is not at the address of Plex. See ways C, D, E, F and G. | Type the helper's address into the app. |
-| Phlix found the helper before and does not find it now. | The server has a new address. | Make a DHCP reservation for the server in the router. |
+| Phlix found the helper before and does not find it now. | The server has a new address. | Make a DHCP reservation for the server in the router. If Phlix still says "Can't reach the helper", see [The server's address changes](#the-servers-address-changes). |
 | Phlix shows Connected at home and uploads nothing away from home. | Phlix uploads only on your home network. | Nothing. Uploads go on when the phone is home again. |
+| Phlix says "Paused: not on your home network", and the phone is on your home Wi-Fi. | Phlix knows your home network by its address range, such as `192.168.1.0/24`, not by the name of the Wi-Fi. A second Wi-Fi at home or a new router can use another range. | Open the Camera Upload screen and choose This Is My Home Network. If Phlix answers "The helper didn't answer", the helper did not answer at the address that the phone has for it. With a new router, the server usually has a new address: choose Disconnect and connect again, as in [The server's address changes](#the-servers-address-changes). The phone keeps its folder, and nothing is uploaded twice. Phlix asks again what to back up. Without a new router, do not disconnect. A guest Wi-Fi cannot reach the server: join the Wi-Fi that the server is on. |
 | Phlix uploads on one Wi-Fi at home and not on another. | The second network is not marked as home. | Connect to it, open the Camera Upload screen and choose This Is My Home Network. |
 | The status page says `Plex Media Server: Not found`. | The helper cannot reach Plex on port 32400. | Set `PLEX_URL`, or use way B, C, D or E. Phones can pair with the pairing code until then. |
 | The owner of the Plex server is asked for a pairing code. | The helper has not found Plex, or Plex lets the helper in without signing in. | Read the status page. Pair with the code, or fix what the page says. |

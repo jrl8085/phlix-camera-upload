@@ -9,9 +9,9 @@
   <Privileged>false</Privileged>
   <Support>https://phlixapp.com/support/</Support>
   <Project>https://phlixapp.com/camera-upload/</Project>
-  <Overview>Phlix Camera Upload receives the photos and videos that the Phlix app uploads from your iPhone or iPad over your home network. It writes them into a folder of your Plex photo library, so they show up in Plex and in Phlix.
+  <Overview>Phlix Camera Upload receives the photos and videos that the Phlix app uploads from your iPhone or iPad over your home network. It writes them into a folder of your Plex photo library, so they show up in Plex and in Phlix. Camera Upload is a beta feature of Phlix 1.0.21 or later, and the app marks it Beta: keep your own backup of anything you cannot replace. The first 100 uploads are free, and Phlix Pro uploads the rest. What the beta does and does not do: https://phlixapp.com/camera-upload/#beta
 
-Before you click Apply, set Photos to a folder inside a share that your Plex photo library includes. When the container runs, open its WebUI. Your browser warns about the certificate. That is expected: the helper makes its own certificate. Then open Phlix on the phone, go to Settings &gt; Camera Upload, and switch Camera Upload on.
+Before you click Apply, set Photos to a folder inside a share that your Plex photo library includes. When the container runs, open its WebUI. Your browser warns about the certificate. That is expected: the helper makes its own certificate. Then open Phlix on the phone, go to Settings &gt; Camera Upload, and tap Check for the Helper.
 
 Keep Network Type on Bridge. Phlix then finds the helper by itself, at the address of your Unraid server. If you give the container its own address (Custom: br0), type that address into the app, and read https://github.com/jrl8085/phlix-camera-upload/blob/main/NETWORKING.md
 

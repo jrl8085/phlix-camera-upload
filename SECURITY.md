@@ -1,5 +1,7 @@
 # Security
 
+Phlix Camera Upload is the helper for Camera Upload, a beta feature of the Phlix app. This page is about its security. To set it up, follow the setup guide: https://phlixapp.com/camera-upload/
+
 ## Reporting a problem
 
 Please report a security problem in private, not in a public issue.
