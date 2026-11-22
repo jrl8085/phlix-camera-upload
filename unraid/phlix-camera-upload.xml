@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>phlix-camera-upload</Name>
+  <Repository>ghcr.io/jrl8085/phlix-camera-upload:1</Repository>
+  <Registry>https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://phlixapp.com/support/</Support>
+  <Project>https://phlixapp.com/camera-upload/</Project>
+  <Overview>Phlix Camera Upload receives the photos and videos that the Phlix app uploads from your iPhone or iPad over your home network. It writes them into a folder of your Plex photo library, so they show up in Plex and in Phlix.
+
+Before you click Apply, set Photos to a folder inside a share that your Plex photo library includes. When the container runs, open its WebUI. Your browser warns about the certificate. That is expected: the helper makes its own certificate. Then open Phlix on the phone, go to Settings &gt; Camera Upload, and switch Camera Upload on.
+
+Keep Network Type on Bridge. Phlix then finds the helper by itself, at the address of your Unraid server. If you give the container its own address (Custom: br0), type that address into the app, and read https://github.com/jrl8085/phlix-camera-upload/blob/main/NETWORKING.md
+
+The helper only receives files. It never deletes a file and never sends one back. Do not forward its port to the internet.
+
+Phlix is an independent application and is not affiliated with, endorsed, or sponsored by Plex, Inc. Plex, the Plex Play logo, and Plex Media Server are trademarks of Plex GmbH and used under a license.</Overview>
+  <Category>Backup: MediaApp:Photos Tools:</Category>
+  <WebUI>https://[IP]:[PORT:7459]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/jrl8085/phlix-camera-upload/main/unraid/phlix-camera-upload.xml</TemplateURL>
+  <Icon>https://phlixapp.com/apple-touch-icon.png</Icon>
+  <ExtraParams>--add-host=host.docker.internal:host-gateway</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Plex Media Server with a photo library on this server, and Phlix 1.0.21 or later on an iPhone or iPad.</Requires>
+  <Config Name="Port" Target="7459" Default="7459" Mode="tcp" Description="The port the Phlix app connects to. The app looks for port 7459 by itself. If you change the port, type the helper's address into the app." Type="Port" Display="always" Required="true" Mask="false">7459</Config>
+  <Config Name="Photos" Target="/photos" Default="" Mode="rw" Description="Your upload folder: where the photos go. Choose a folder inside a share that your Plex photo library includes, for example /mnt/user/Photos/Camera Uploads. If Plex cannot see this folder, the photos never show up in Plex." Type="Path" Display="always" Required="true" Mask="false"/>
+  <Config Name="Plex address" Target="PLEX_URL" Default="" Mode="" Description="You can leave this empty: the helper finds Plex Media Server on this server by itself. Fill it in if the helper's page says Plex Media Server: Not found, or to make sure that the helper asks your own server and no other. Example: http://192.168.1.10:32400" Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="Helper data" Target="/config" Default="/mnt/user/appdata/phlix-camera-upload" Mode="rw" Description="Where the helper keeps its own data: the list of paired phones, the list of files it has received, and its certificate. No photos are kept here. If this folder is lost, every phone has to pair again." Type="Path" Display="advanced" Required="true" Mask="false">/mnt/user/appdata/phlix-camera-upload</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="The user that owns the uploaded files. 99 is the user named nobody, which Unraid uses for shares." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="The group that owns the uploaded files. 100 is the group named users, which Unraid uses for shares." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="022" Mode="" Description="Permissions for new files and folders. Do not leave this empty. 022: other users may read the uploads but not change them. 002: the group may change them too. 000: every user may change them." Type="Variable" Display="advanced" Required="false" Mask="false">022</Config>
+</Container>

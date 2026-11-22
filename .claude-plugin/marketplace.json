@@ -1,0 +1,13 @@
+{
+  "name": "phlix",
+  "owner": {
+    "name": "Phlix"
+  },
+  "plugins": [
+    {
+      "name": "phlix-camera-upload",
+      "source": "./",
+      "description": "Sets up the Phlix Camera Upload helper (a Docker container next to Plex Media Server) on your server, checks it, and fixes it when something is wrong."
+    }
+  ]
+}

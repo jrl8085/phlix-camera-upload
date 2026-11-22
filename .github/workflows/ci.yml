@@ -1,0 +1,282 @@
+# Checks every push and every pull request:
+#   1. the unit tests, on each Python version the helper supports;
+#   2. the files around the program: the scripts, the Compose file, the
+#      Unraid template, and that the documents still agree with the program;
+#   3. the Docker image: it is built, started the way the README says, used
+#      the way the Phlix app uses it, and installed with install.sh.
+#
+# release.yml also runs this whole file, and publishes only if it passes.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tests:
+    name: Unit tests, Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run the unit tests
+        run: python -m unittest discover -s tests -t .
+
+  files:
+    name: Scripts, Compose file, template and documents
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: The smoke test is valid shell
+        run: sh -n scripts/smoke-test.sh
+
+      - name: The installer is valid shell and shows its help
+        run: |
+          sh -n install.sh
+          sh install.sh --help
+
+      # install.sh with a stand-in for Docker: what it says and does when
+      # Docker is missing, too old, not allowed, or fails half way, and what
+      # it writes for each option. The job "Docker image" below runs the
+      # installer with the real Docker.
+      - name: The installer handles every case
+        run: bash scripts/test-install.sh
+
+      # Settings, defaults, file types, commands, addresses and quoted
+      # messages in the documents, against the program. Also: the Compose
+      # text in install.sh and in SETUP-WITH-AI.md is the one in
+      # docker-compose.yml, the skill gives the instructions of
+      # SETUP-WITH-AI.md and keeps the rules for a skill, and every link
+      # between the files leads somewhere.
+      - name: The documents agree with the program
+        run: python3 scripts/check-docs.py
+
+      # The repository is also a Claude Code plugin. Its two files must be
+      # valid JSON, and the plugin must carry the program's version.
+      - name: The plugin files are valid JSON with the program's version
+        run: |
+          python3 -m json.tool .claude-plugin/marketplace.json > /dev/null
+          python3 -m json.tool .claude-plugin/plugin.json > /dev/null
+          plugin=$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')
+          program=$(python3 -m phlix_upload version)
+          echo "plugin $plugin, program $program"
+          [ "$plugin" = "$program" ]
+
+      # The skill, packed for the Claude apps. The ZIP must hold one folder
+      # with SKILL.md in it.
+      - name: The skill packs into its ZIP
+        run: |
+          sh scripts/build-skill-zip.sh
+          unzip -l dist/phlix-camera-upload-setup.zip
+          unzip -l dist/phlix-camera-upload-setup.zip | grep ' phlix-camera-upload-setup/SKILL.md$'
+          unzip -p dist/phlix-camera-upload-setup.zip phlix-camera-upload-setup/SKILL.md | cmp - skills/phlix-camera-upload-setup/SKILL.md
+
+      - name: Docker Compose accepts the Compose file
+        run: docker compose --file docker-compose.yml config --quiet
+
+      - name: The Unraid template is well-formed XML
+        run: python3 -c "import sys, xml.dom.minidom; xml.dom.minidom.parse(sys.argv[1])" unraid/phlix-camera-upload.xml
+
+  image:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      INSTALL: ${{ github.workspace }}/ci-install
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image for this machine
+        run: docker build --tag phlix-camera-upload:ci .
+
+      - name: A container without its folders refuses to start
+        run: |
+          set +e
+          output=$(docker run --rm phlix-camera-upload:ci 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "::error::The helper started with nothing mounted at /photos and /config."
+            exit 1
+          fi
+          grep --fixed-strings --quiet "Nothing is mounted at /photos." <<<"$output"
+          grep --fixed-strings --quiet "Nothing is mounted at /config." <<<"$output"
+
+      - name: The doctor command names the missing folders
+        run: |
+          set +e
+          output=$(docker run --rm phlix-camera-upload:ci doctor 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          [ "$status" -eq 1 ]
+          grep --fixed-strings --quiet "PROBLEM  Nothing is mounted at /photos." <<<"$output"
+          grep --fixed-strings --quiet "PROBLEM  Nothing is mounted at /config." <<<"$output"
+
+      # The file customers copy, changed the way the README says: one line,
+      # the photos folder. (The image line changes too, so that the image
+      # built above is the one under test.)
+      - name: Start the helper with the Compose file
+        run: |
+          mkdir -p "$INSTALL/photos"
+          cp docker-compose.yml "$INSTALL/docker-compose.yml"
+          cd "$INSTALL"
+          sed --in-place \
+            -e "s|^\( *source: \).*|\1$INSTALL/photos|" \
+            -e "s|^\( *image: \).*|\1phlix-camera-upload:ci|" \
+            docker-compose.yml
+          grep --line-number -e "source:" -e "image:" docker-compose.yml
+          docker compose up --detach
+
+      - name: Wait for the helper to answer
+        run: |
+          for attempt in $(seq 1 30); do
+            if [ "$(curl --silent --insecure --max-time 5 https://127.0.0.1:7459/healthz)" = ok ]; then
+              echo "The helper answered after $attempt tries."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::The helper did not answer on https://127.0.0.1:7459/healthz."
+          exit 1
+
+      - name: Smoke test
+        run: |
+          code=$(docker exec phlix-camera-upload python -m phlix_upload code)
+          sh scripts/smoke-test.sh https://127.0.0.1:7459 "$code" "$INSTALL/photos"
+
+      - name: The doctor command finds nothing to fix
+        run: |
+          docker exec phlix-camera-upload python -m phlix_upload doctor | tee "$RUNNER_TEMP/doctor.txt"
+          grep --fixed-strings --quiet "Nothing needs fixing." "$RUNNER_TEMP/doctor.txt"
+
+      - name: The helper runs as the owner of the photos folder, not as root
+        run: |
+          uid=$(stat --format '%u' "$INSTALL/photos")
+          gid=$(stat --format '%g' "$INSTALL/photos")
+          echo "The photos folder belongs to user $uid, group $gid."
+          if [ "$uid" -eq 0 ]; then
+            echo "::error::The photos folder belongs to root, so this check would prove nothing."
+            exit 1
+          fi
+
+          # The log says which user the helper became.
+          docker logs phlix-camera-upload 2>&1 | grep --fixed-strings "Running as user $uid, group $gid"
+
+          # The server process itself has that user.
+          process_uid=$(docker exec phlix-camera-upload awk '/^Uid:/ { print $2 }' /proc/1/status)
+          echo "The helper's process runs as user $process_uid."
+          [ "$process_uid" = "$uid" ]
+
+          # Everything it wrote, photos and its own data, has that owner.
+          uploaded=$(sudo find "$INSTALL/photos" -type f -name '*.jpg' | wc -l)
+          echo "Uploaded pictures on disk: $uploaded"
+          [ "$uploaded" -ge 1 ]
+          strays=$(sudo find "$INSTALL/photos" "$INSTALL/config" ! \( -uid "$uid" -gid "$gid" \) -print)
+          sudo ls -lnR "$INSTALL/photos" "$INSTALL/config"
+          if [ -n "$strays" ]; then
+            echo "::error::Some files do not belong to user $uid, group $gid."
+            printf '%s\n' "$strays"
+            exit 1
+          fi
+
+      # The image's own health check, at its own pace: the first check runs
+      # 30 seconds after the start.
+      - name: Docker reports the helper healthy
+        run: |
+          for attempt in $(seq 1 40); do
+            health=$(docker inspect --format '{{.State.Health.Status}}' phlix-camera-upload)
+            if [ "$health" = healthy ]; then
+              break
+            fi
+            sleep 3
+          done
+          echo "Health: $health"
+          docker compose --file "$INSTALL/docker-compose.yml" ps
+          [ "$health" = healthy ]
+
+      - name: The health check follows PORT and TLS
+        run: |
+          mkdir -p "$INSTALL/plain-photos" "$INSTALL/plain-config"
+          docker run --detach --name phlix-plain \
+            --publish 8080:8080 \
+            --env TLS=off --env PORT=8080 --env PLEX_URL=http://127.0.0.1:9 \
+            --health-interval=3s \
+            --volume "$INSTALL/plain-photos:/photos" \
+            --volume "$INSTALL/plain-config:/config" \
+            phlix-camera-upload:ci
+          for attempt in $(seq 1 40); do
+            health=$(docker inspect --format '{{.State.Health.Status}}' phlix-plain)
+            if [ "$health" = healthy ]; then
+              break
+            fi
+            sleep 3
+          done
+          echo "Health: $health"
+          [ "$health" = healthy ]
+          [ "$(curl --silent --show-error --max-time 10 http://127.0.0.1:8080/healthz)" = ok ]
+
+      # install.sh for real: a first install into new folders, then a second
+      # run, which must update and change nothing. The image built above
+      # takes the place of the published one. It exists only on this
+      # machine, so the installer cannot download it and goes on with it.
+      - name: The installer installs, and a second run updates
+        env:
+          PHLIX_CAMERA_UPLOAD_IMAGE: phlix-camera-upload:ci
+        run: |
+          docker compose --file "$INSTALL/docker-compose.yml" down
+          mkdir -p "$INSTALL/library"
+
+          sh install.sh --yes --photos "$INSTALL/library/Camera Uploads" --dir "$INSTALL/by-installer"
+
+          test -d "$INSTALL/library/Camera Uploads"
+          [ "$(docker inspect --format '{{.State.Health.Status}}' phlix-camera-upload)" = healthy ]
+          # The file it wrote is the repository's file with two lines filled in.
+          diff \
+            <(sed -e "s|^\( *source: \).*|\1'$INSTALL/library/Camera Uploads'|" \
+                  -e "s|^\( *image: \).*|\1phlix-camera-upload:ci|" docker-compose.yml) \
+            "$INSTALL/by-installer/docker-compose.yml"
+          cp "$INSTALL/by-installer/docker-compose.yml" "$RUNNER_TEMP/first.yml"
+
+          sh install.sh --yes --dir "$INSTALL/by-installer" | tee "$RUNNER_TEMP/second-run.txt"
+          grep --fixed-strings --quiet "This run updates it." "$RUNNER_TEMP/second-run.txt"
+          grep --fixed-strings --quiet "Nothing needs fixing." "$RUNNER_TEMP/second-run.txt"
+          diff "$RUNNER_TEMP/first.yml" "$INSTALL/by-installer/docker-compose.yml"
+
+          # The helper it installed works from end to end.
+          code=$(docker exec phlix-camera-upload python -m phlix_upload code)
+          sh scripts/smoke-test.sh https://127.0.0.1:7459 "$code" "$INSTALL/library/Camera Uploads"
+
+      # The pairing code in this log opens nothing: the containers end with
+      # the job. It is hidden anyway, as the setup guide asks.
+      - name: Show the helper's log
+        if: always()
+        run: |
+          for name in phlix-camera-upload phlix-plain; do
+            echo "::group::$name"
+            docker logs "$name" 2>&1 | sed 's/\(Pairing code: \).*/\1(hidden)/' || true
+            docker inspect --format '{{json .State.Health}}' "$name" || true
+            echo "::endgroup::"
+          done

@@ -1,0 +1,9 @@
+# The image holds the program and nothing else, so the build is sent only
+# the phlix_upload folder. Everything else is left out, then that one folder
+# is let back in. (Docker always reads the Dockerfile itself.)
+*
+!phlix_upload/
+
+# Compiled Python files from running the helper or its tests on this machine.
+**/__pycache__/
+**/*.py[cod]

@@ -1,0 +1,15 @@
+# Dependabot opens a pull request when something this repository builds on
+# has a newer version. It looks once a week.
+version: 2
+updates:
+  # The actions that the workflows in .github/workflows use.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # The base image named in the Dockerfile.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

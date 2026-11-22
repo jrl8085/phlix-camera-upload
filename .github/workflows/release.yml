@@ -1,0 +1,154 @@
+# Publishes the Docker image to ghcr.io/jrl8085/phlix-camera-upload.
+#
+#   A push to main          publishes "latest", and the version written in
+#                           phlix_upload/__init__.py as three tags. Version
+#                           1.0.0 gives 1.0.0, 1.0 and 1.
+#   A tag such as v1.0.0    publishes 1.0.0, 1.0 and 1.
+#   Every Monday            builds main again from nothing and publishes the
+#                           same tags as a push to main. The image then holds
+#                           the newest Alpine and Python fixes, without a
+#                           change to the code.
+#   By hand                 "Run workflow" on main or on a version tag does
+#                           the same as the Monday run.
+#
+# Everything in ci.yml runs first. Nothing is pushed unless it all passes.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  schedule:
+    # Mondays at 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Two releases of the same branch or tag never push at the same time.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  IMAGE: ghcr.io/jrl8085/phlix-camera-upload
+
+jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  publish:
+    name: Build and push the image
+    needs: tests
+    # A copy of this repository must not try to publish under this name.
+    # A run started by hand publishes from main or from a version tag only.
+    if: >-
+      github.repository == 'jrl8085/phlix-camera-upload' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the version from the program
+        id: version
+        run: |
+          version=$(python3 -m phlix_upload version)
+          if ! grep --extended-regexp --quiet '^[0-9]+\.[0-9]+\.[0-9]+$' <<<"$version"; then
+            echo "::error::phlix_upload/__init__.py says version '$version'. A release needs three numbers, such as 1.0.0."
+            exit 1
+          fi
+          echo "The program is version $version."
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: A release tag must match that version
+        if: github.ref_type == 'tag'
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME, but phlix_upload/__init__.py says $VERSION. Make them match, then tag again."
+            exit 1
+          fi
+
+      # The Arm images are built on this Intel machine by emulation.
+      - uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64,arm
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Which tags to push.
+      #   The first four lines apply to main only, however the run started
+      #   (a push, the Monday run, or by hand): "latest", then the version
+      #   read above as 1.0.0, 1.0 and 1.
+      #   The last three lines apply to a tag only (v1.0.0 gives 1.0.0, 1.0
+      #   and 1). On main they do nothing.
+      # The labels and annotations repeat the LABEL lines of the Dockerfile.
+      # Without them this step would fill those fields from the repository's
+      # own settings. Keep the two places the same.
+      - name: Work out the tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.value }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.value }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.value }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+          labels: |
+            org.opencontainers.image.title=Phlix Camera Upload
+            org.opencontainers.image.description=Receives the photos and videos that the Phlix app uploads from an iPhone or iPad and writes them into a folder of a Plex photo library.
+            org.opencontainers.image.url=https://phlixapp.com/camera-upload/
+            org.opencontainers.image.vendor=Phlix (phlixapp.com)
+            org.opencontainers.image.licenses=LicenseRef-Proprietary
+          annotations: |
+            org.opencontainers.image.title=Phlix Camera Upload
+            org.opencontainers.image.description=Receives the photos and videos that the Phlix app uploads from an iPhone or iPad and writes them into a folder of a Plex photo library.
+            org.opencontainers.image.url=https://phlixapp.com/camera-upload/
+            org.opencontainers.image.vendor=Phlix (phlixapp.com)
+            org.opencontainers.image.licenses=LicenseRef-Proprietary
+
+      # The Monday run and a run by hand use no saved layers, so that they
+      # pick up new packages. A push may reuse layers and is faster.
+      # "provenance" records how the image was built, and "sbom" lists what
+      # is in it. Both are stored next to the image.
+      - name: Build for Intel and Arm, then push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          pull: true
+          no-cache: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+          provenance: true
+          sbom: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data from running the helper or the Compose file inside this folder.
+# The leading slash keeps these rules away from phlix_upload/config.py.
+/config/
+/photos/
+.env
+docker-compose.override.yml
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# What scripts/build-skill-zip.sh makes.
+/dist/
