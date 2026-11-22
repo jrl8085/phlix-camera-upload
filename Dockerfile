@@ -7,7 +7,7 @@
 # The program uses only the Python standard library, so the image is the
 # Python base image plus one package.
 
-FROM python:3.13-alpine
+FROM python:3.15-alpine
 
 LABEL org.opencontainers.image.title="Phlix Camera Upload" \
       org.opencontainers.image.description="Receives the photos and videos that the Phlix app uploads from an iPhone or iPad and writes them into a folder of a Plex photo library." \
