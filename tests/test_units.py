@@ -66,7 +66,18 @@ class ConfigTests(unittest.TestCase):
                 self.assertIn(word, str(raised.exception))
 
     def test_an_empty_template_puts_everything_in_one_folder(self):
-        self.assertEqual(config_module.load({"PATH_TEMPLATE": ""}).path_template, "")
+        # A lone slash asks for no folders at all: every file goes straight
+        # into the upload folder.
+        self.assertEqual(config_module.load({"PATH_TEMPLATE": "/"}).path_template, "")
+
+    def test_an_empty_setting_means_its_default(self):
+        # Template screens (Unraid, Portainer) pass every setting they know,
+        # filled in or not.
+        names = ["PORT", "BIND", "UPLOAD_DIR", "CONFIG_DIR", "NAME", "PLEX_URL", "PAIRING", "PAIRING_CODE",
+                 "PATH_TEMPLATE", "MIN_FREE_GB", "MAX_UPLOAD_GB", "TLS", "TLS_CERT", "TLS_KEY", "PUID", "PGID",
+                 "UMASK", "EXTRA_EXTENSIONS", "LOG_LEVEL"]
+        self.assertEqual(config_module.load({name: "" for name in names}), config_module.load({}))
+        self.assertEqual(config_module.load({name: "   " for name in names}), config_module.load({}))
 
 
 class MountGuardTests(unittest.TestCase):

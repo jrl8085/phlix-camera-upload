@@ -8,7 +8,7 @@ Only the Python standard library is used, so the whole program can be read in
 one sitting and the Docker image needs nothing installed with pip.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 #: Version of the HTTP API in `server.py`. The app refuses a helper whose
 #: major API version it does not know, so raise it only for a breaking change.

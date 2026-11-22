@@ -28,6 +28,9 @@ def _row(label: str, value: str, state: str = "") -> str:
 
 
 def _plex_row(app, identity) -> str:
+    if identity is None and not app.code_pairing:
+        return _row("Plex Media Server", "Not found. This helper pairs through Plex only, so no phone can "
+                    "pair until it is: set PLEX_URL.", "bad")
     if identity is None:
         return _row("Plex Media Server", "Not found. Pairing needs the pairing code; set PLEX_URL to pair "
                     "without it.", "warn")

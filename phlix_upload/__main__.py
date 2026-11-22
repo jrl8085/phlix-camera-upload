@@ -20,6 +20,7 @@ import logging
 import os
 import signal
 import socket
+import sqlite3
 import ssl
 import sys
 import threading
@@ -197,6 +198,14 @@ def serve() -> int:
     os.umask(config.umask)
     try:
         app, context = build_app(config)
+    except sqlite3.Error as error:
+        # Nearly always: the user the helper runs as may not write there.
+        log.error("Phlix Camera Upload cannot start: it cannot use its own data folder %s (%s). "
+                  "The helper runs as user %s, group %s, and that user must be able to write to the "
+                  "folder. Change the folder's owner, or set PUID and PGID. On a system with SELinux, "
+                  "the folder also needs the label for containers: see Troubleshooting in the README.",
+                  config.config_dir, error, os.geteuid(), os.getegid())
+        return 1
     except (TLSError, OSError) as error:
         log.error("Phlix Camera Upload cannot start: %s", error)
         return 1
@@ -210,9 +219,13 @@ def serve() -> int:
 
     def find_plex() -> None:
         if app.plex.identity(wait=True) is None and app.plex_pairing:
-            log.warning("No Plex Media Server found at %s. Phones can still pair with the pairing code. "
-                        "To pair without it, set PLEX_URL to your server's address.",
-                        ", ".join(app.plex.candidates()[:4]))
+            places = ", ".join(app.plex.candidates()[:4])
+            if app.code_pairing:
+                log.warning("No Plex Media Server found at %s. Phones can still pair with the pairing code. "
+                            "To pair without it, set PLEX_URL to your server's address.", places)
+            else:
+                log.warning("No Plex Media Server found at %s. With PAIRING=plex no phone can pair until "
+                            "it is found: set PLEX_URL to your server's address.", places)
 
     threading.Thread(target=find_plex, name="plex-find", daemon=True).start()
 
@@ -239,8 +252,10 @@ def _ask_running_helper(config: config_module.Config) -> dict | None:
     context.verify_mode = ssl.CERT_NONE
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}),
                                          urllib.request.HTTPSHandler(context=context))
+    # The helper answers on every address unless BIND names one.
+    host = "127.0.0.1" if config.bind in ("", "0.0.0.0") else config.bind
     try:
-        with opener.open(f"{scheme}://127.0.0.1:{config.port}/api/v1/health", timeout=5) as response:
+        with opener.open(f"{scheme}://{host}:{config.port}/api/v1/health", timeout=5) as response:
             return json.loads(response.read(64 * 1024))
     except (urllib.error.URLError, OSError, ValueError):
         return None
@@ -313,6 +328,11 @@ def doctor(config: config_module.Config, out=None) -> int:
         plex = report.get("plex", {})
         if config.pairing == "code":
             note("This helper is set to pair with the pairing code only (PAIRING=code).")
+        elif not plex.get("found") and config.pairing == "plex":
+            problem("No Plex Media Server found, and this helper pairs through Plex only (PAIRING=plex), "
+                    "so no phone can pair.",
+                    "Set PLEX_URL to your server's address, for example PLEX_URL=http://192.168.1.10:32400, "
+                    "or set PAIRING to auto.")
         elif not plex.get("found"):
             note("No Plex Media Server found. Phones pair with the pairing code. To let the server's "
                  "owner pair without it, set PLEX_URL, for example PLEX_URL=http://192.168.1.10:32400")

@@ -109,7 +109,11 @@ def load(environ: dict[str, str] | None = None) -> Config:
     env = os.environ if environ is None else environ
 
     def get(name: str, default: str = "") -> str:
-        return env.get(name, default).strip()
+        # A setting that is there but empty counts as not there. Unraid and
+        # other screens that fill in a template pass every setting they
+        # know, empty or not, and an empty line must not stop the helper.
+        value = env.get(name, "").strip()
+        return value if value else default
 
     pairing = get("PAIRING", "auto").lower()
     if pairing not in ("auto", "code", "plex"):

@@ -822,6 +822,63 @@ class AdminCommandTests(unittest.TestCase):
         self.assertIn("is not answering on port", out)
         self.assertIn("docker logs phlix-camera-upload", out)
 
+    def test_plex_only_pairing_with_no_plex_is_a_problem_not_a_note(self):
+        with running(PAIRING="plex") as helper:
+            helper.app.plex.identity(wait=True)
+            # Nobody can pair, and neither the page nor doctor says they can.
+            _, page, _ = helper.request("GET", "/")
+            self.assertIn(b"no phone can", page)
+            self.assertNotIn(b"Pairing needs the pairing code", page)
+            code, out = self._doctor(helper, PAIRING="plex")
+            self.assertEqual(code, 1, out)
+            self.assertIn("PROBLEM  No Plex Media Server found, and this helper pairs through Plex only", out)
+            self.assertIn("Fix: Set PLEX_URL", out)
+        with running() as helper:
+            helper.app.plex.identity(wait=True)
+            _, page, _ = helper.request("GET", "/")
+            self.assertIn(b"Pairing needs the pairing code", page)
+            code, out = self._doctor(helper)
+            self.assertEqual(code, 0, out)
+            self.assertIn("NOTE     No Plex Media Server found. Phones pair with the pairing code.", out)
+
+    def test_doctor_asks_the_address_the_helper_listens_on(self):
+        with running() as helper:
+            asked = []
+            real = main_module.urllib.request.OpenerDirector.open
+
+            def spy(opener, url, *arguments, **keywords):
+                asked.append(url if isinstance(url, str) else url.full_url)
+                return real(opener, url, *arguments, **keywords)
+
+            with mock.patch.object(main_module.urllib.request.OpenerDirector, "open", spy):
+                self._doctor(helper)
+                self._doctor(helper, BIND="0.0.0.0")
+                self._doctor(helper, BIND="127.0.0.1")
+                # One address only: that is where the question goes.
+                self._doctor(helper, BIND="192.0.2.7")
+            # (The helper under test asks Plex through the same class.)
+            hosts = [url.split("//")[1].split(":")[0] for url in asked if url.endswith("/api/v1/health")]
+            self.assertEqual(hosts, ["127.0.0.1", "127.0.0.1", "127.0.0.1", "192.0.2.7"])
+
+    def test_a_data_folder_that_cannot_be_written_is_said_in_one_line(self):
+        if os.geteuid() == 0:
+            self.skipTest("root may write anywhere")
+        import tempfile
+        root = tempfile.mkdtemp(prefix="phlix-upload-test-")
+        self.addCleanup(lambda: (os.chmod(os.path.join(root, "config"), 0o700), __import__("shutil").rmtree(root, True)))
+        os.makedirs(os.path.join(root, "photos"))
+        os.makedirs(os.path.join(root, "config"))
+        os.chmod(os.path.join(root, "config"), 0o500)
+        env = {"UPLOAD_DIR": os.path.join(root, "photos"), "CONFIG_DIR": os.path.join(root, "config"),
+               "PORT": "17499", "BIND": "127.0.0.1", "PLEX_URL": "http://127.0.0.1:9"}
+        with mock.patch.dict(os.environ, env, clear=True), self.assertLogs("phlix", level="ERROR") as logs:
+            code = main_module.serve()
+        self.assertEqual(code, 1)
+        text = "\n".join(logs.output)
+        self.assertIn("cannot use its own data folder", text)
+        self.assertIn("PUID and PGID", text)
+        self.assertNotIn("Traceback", text)
+
     def test_doctor_does_not_promise_plex_pairing_when_it_is_switched_off(self):
         plex = FakePlex()
         self.addCleanup(plex.close)

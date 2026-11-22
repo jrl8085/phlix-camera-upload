@@ -302,7 +302,7 @@ The helper works without any settings. To change one, open `docker-compose.yml`,
 | `PAIRING` | `auto` | Who may pair. `auto`: the owner of the Plex server pairs without a code, and everyone else types the pairing code. `code`: everyone types the code. `plex`: only the owner of the Plex server may pair. |
 | `PAIRING_CODE` | empty | Your own pairing code, with at least 6 letters or digits. When this is empty, the helper makes a code on first start and keeps it. |
 | `NAME` | `Phlix Camera Upload` | The name that the app and the status page show for this helper. At most 60 characters. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | The folders that the helper makes inside the upload folder. You can use `{device}`, `{year}`, `{month}` and `{day}`. No folder may start with a dot. With an empty value, every file goes straight into the upload folder. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | The folders that the helper makes inside the upload folder. You can use `{device}`, `{year}`, `{month}` and `{day}`. No folder may start with a dot. With a lone `/`, every file goes straight into the upload folder. |
 | `MIN_FREE_GB` | `2` | The helper refuses an upload that would leave less than this many GB free on the disk. It counts the uploads that are still arriving, so several uploads at once cannot take the disk below this. From 0 to 1000000. |
 | `MAX_UPLOAD_GB` | `50` | The largest single file that the helper accepts, in GB. From 0.001 to 1000000. |
 | `EXTRA_EXTENSIONS` | empty | More file types to accept, separated by commas, such as `insp,lrv`. Each is 1 to 10 letters or digits. |
@@ -318,7 +318,7 @@ The helper works without any settings. To change one, open `docker-compose.yml`,
 | `UPLOAD_DIR` | `/photos` | The folder, inside the container, where uploads go. With Docker, leave this alone and mount your upload folder at `/photos`. |
 | `CONFIG_DIR` | `/config` | The folder, inside the container, for the helper's own data. With Docker, leave this alone and mount a folder at `/config`. |
 
-An empty value does not mean "use the default" for every setting. If you do not want to change a setting, leave its line out.
+A setting that is there but empty counts as not set: the helper uses its default. So a screen that fills in a template, such as Unraid's, can leave any field empty.
 
 The image also sets `PHLIX_CONTAINER=1`. With it, the helper refuses to start unless `/photos` and `/config` are both real mounts. `ALLOW_UNMOUNTED=1` switches that check off.
 
@@ -428,7 +428,7 @@ docker exec phlix-camera-upload python -m phlix_upload doctor
 A healthy helper answers like this:
 
 ```
-Phlix Camera Upload 1.0.0
+Phlix Camera Upload 1.0.1
 OK       The helper is running on port 7459
 OK       The upload folder /photos can be written to.
 OK       224.5 GB free on the upload disk.
@@ -499,11 +499,18 @@ First find out whether the files arrive. The status page shows `Files stored`, a
 | Other users can read the files and cannot change them. | Set `UMASK` to `002`, and make sure those users are in the group. |
 | The status page says `The helper cannot write here`. | The user that the helper runs as may not write to the upload folder. Change the folder's owner or permissions, or set `PUID` and `PGID`. |
 
+### The helper stops, and the log says "it cannot use its own data folder"
+
+| Cause | Fix |
+| --- | --- |
+| The user that the helper runs as may not write to the `config` folder. The log line names that user and group by number. | Give the folder to that user. In the helper's folder, run `sudo chown -R USER:GROUP config`, with the two numbers from the log line. Or set `PUID` and `PGID` to the owner of the `config` folder. Then run `docker compose up -d`. |
+| The server uses SELinux. | See the next part. |
+
 ### The helper cannot use its folders on a server with SELinux
 
 | Cause | Fix |
 | --- | --- |
-| Fedora, RHEL, Rocky Linux and similar systems use SELinux. It keeps a container out of every folder that is not labelled for containers. The log then says `unable to open database file`, or the status page says `The helper cannot write here`. | Label both folders for containers. Run this command in the helper's folder, with your own upload folder in it: `sudo chcon -R -t container_file_t "/mnt/media/Photos/Camera Uploads" config`. Then run `docker compose restart`. |
+| Fedora, RHEL, Rocky Linux and similar systems use SELinux. It keeps a container out of every folder that is not labelled for containers. The log then says `it cannot use its own data folder`, with `unable to open database file`, or the status page says `The helper cannot write here`. | Label both folders for containers. Run this command in the helper's folder, with your own upload folder in it: `sudo chcon -R -t container_file_t "/mnt/media/Photos/Camera Uploads" config`. Then run `docker compose restart`. |
 
 ### Docker Compose says "bind source path does not exist"
 
@@ -531,7 +538,7 @@ First find out whether the files arrive. The status page shows `Files stored`, a
 | --- | --- |
 | The same device paired again. That is normal after a phone was restored or set up again. The pairing it had before stops working, and the log says `was already paired and has paired again from`, with the name of the device and the address it came from. | Pair the phone again. If nobody in your home did that, someone else has the pairing code. Make a new code with the `new-code` command below and restart the helper. Then pair the phone again: that ends the other pairing. |
 | The device was unpaired with the `unpair` command. | Pair the phone again. |
-| The helper lost its `config` folder and made a new certificate. | Pair every phone again. See [The config folder](#the-config-folder). |
+| The helper lost its `config` folder and made a new certificate. Phlix then says "The server's identity has changed". | In Phlix, choose Disconnect on the Camera Upload screen, then connect again. Do that on every phone. Nothing is uploaded twice. See [The config folder](#the-config-folder). |
 
 ## Admin commands
 
