@@ -105,8 +105,25 @@ jobs:
           import json
           import os
           import sys
+          import time
           import urllib.error
           import urllib.request
+
+
+          def fetch(request):
+              """(headers, JSON body). Tries three times when the network or the registry hiccups."""
+              for attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(request, timeout=30) as response:
+                          return response.headers, json.load(response)
+                  except urllib.error.HTTPError as error:
+                      if error.code < 500 and error.code != 429 or attempt == 2:
+                          raise
+                  except (urllib.error.URLError, TimeoutError, ConnectionError):
+                      if attempt == 2:
+                          raise
+                  time.sleep(5 * (attempt + 1))
+
 
           image = sys.argv[1]
           if not image.startswith("ghcr.io/") or ":" not in image.split("/")[-1]:
@@ -123,9 +140,8 @@ jobs:
           problems = []
 
           # The token anyone gets for a public image, with no account.
-          url = f"https://ghcr.io/token?scope=repository:{repository}:pull&service=ghcr.io"
-          with urllib.request.urlopen(url, timeout=30) as response:
-              token = json.load(response)["token"]
+          _, answer = fetch(f"https://ghcr.io/token?scope=repository:{repository}:pull&service=ghcr.io")
+          token = answer["token"]
           print(f"::add-mask::{token}")
           print("An anonymous pull token was given (not shown).")
 
@@ -134,11 +150,11 @@ jobs:
                   f"https://ghcr.io/v2/{repository}/manifests/{reference}",
                   headers={"Authorization": f"Bearer {token}", "Accept": ACCEPT})
               try:
-                  with urllib.request.urlopen(request, timeout=30) as response:
-                      return response.headers.get("Docker-Content-Digest"), json.load(response)
+                  headers, body = fetch(request)
               except urllib.error.HTTPError as error:
                   problems.append(f"{reference}: HTTP {error.code}")
                   return None, {}
+              return headers.get("Docker-Content-Digest"), body
 
           def platforms(index):
               found = {}
@@ -887,6 +903,8 @@ jobs:
           python3 -I - "$RUNNER_TEMP/template.xml" "$compose_image" "$RAW/unraid/phlix-camera-upload.xml" <<'PY'
           import json
           import sys
+          import time
+          import urllib.error
           import urllib.request
           import xml.dom.minidom
           import xml.etree.ElementTree as ElementTree
@@ -935,18 +953,29 @@ jobs:
               problems.append("Photos is not Required, so Unraid would let Apply go without it")
           print(f"It names the image {text('Repository')}, the one the guide's Compose file names.")
 
+          def fetch(request):
+              """(headers, JSON body). Tries three times when the network or the registry hiccups."""
+              for attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(request, timeout=30) as response:
+                          return response.headers, json.load(response)
+                  except urllib.error.HTTPError as error:
+                      if error.code < 500 and error.code != 429 or attempt == 2:
+                          raise
+                  except (urllib.error.URLError, TimeoutError, ConnectionError):
+                      if attempt == 2:
+                          raise
+                  time.sleep(5 * (attempt + 1))
+
           # The image it names comes down without signing in, for amd64: Unraid runs there.
           repository, tag = text("Repository")[len("ghcr.io/"):].rsplit(":", 1)
-          url = f"https://ghcr.io/token?scope=repository:{repository}:pull&service=ghcr.io"
-          with urllib.request.urlopen(url, timeout=30) as response:
-              token = json.load(response)["token"]
+          _, answer = fetch(f"https://ghcr.io/token?scope=repository:{repository}:pull&service=ghcr.io")
+          token = answer["token"]
           print(f"::add-mask::{token}")
-          request = urllib.request.Request(f"https://ghcr.io/v2/{repository}/manifests/{tag}", headers={
+          headers, index = fetch(urllib.request.Request(f"https://ghcr.io/v2/{repository}/manifests/{tag}", headers={
               "Authorization": f"Bearer {token}",
-              "Accept": "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"})
-          with urllib.request.urlopen(request, timeout=30) as response:
-              index = json.load(response)
-              digest = response.headers.get("Docker-Content-Digest")
+              "Accept": "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"}))
+          digest = headers.get("Docker-Content-Digest")
           platforms = {(entry.get("platform") or {}).get("architecture") for entry in index.get("manifests", [])}
           if "amd64" not in platforms:
               problems.append(f"{text('Repository')} has no amd64 image")
