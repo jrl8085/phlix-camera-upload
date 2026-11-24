@@ -1,0 +1,1210 @@
+# The stranger test.
+#
+# Can someone who has never seen this repository install the helper from the
+# public setup guide alone, and does the helper then work with the Phlix app?
+#
+# Each job starts on a clean machine and does what the guide at
+# https://phlixapp.com/camera-upload/ tells a person to do, and nothing more:
+#
+#   - It checks out nothing and signs in to no registry. Docker gets an empty
+#     configuration, so the image comes down as it does for anyone.
+#   - It downloads what the guide says to download, from where the guide says.
+#   - It changes only what the guide tells a person to change: the line with
+#     the upload folder, or the Photos field on Unraid.
+#   - It types the guide's commands as the guide writes them, and answers the
+#     installer's questions on a terminal, as a person would.
+#
+# Then it acts as the Phlix app. It finds the helper at the server's own
+# address on port 7459, keeps the certificate that the helper shows, pairs
+# two devices with the pairing code, uploads two photos, and checks where
+# they are on disk. After an update and a restart, the first device must
+# still be paired, and nothing may be stored twice.
+#
+#   Way C, by hand with Docker Compose   amd64, arm64, armv7
+#   Way A, the one-command installer     amd64, arm64, armv7
+#   Unraid, with the template            amd64
+#
+# amd64 and arm64 run on machines of that kind. armv7 (32-bit Arm) runs under
+# emulation (QEMU) on an amd64 machine.
+#
+# A stranger's server has two things before the guide starts: a folder of a
+# Plex photo library, and Plex Media Server on port 32400. The job makes the
+# folder. A real Plex server must be claimed with a Plex account, so a small
+# stand-in answers on port 32400 instead, the way a claimed server answers
+# the helper: /identity without a sign-in, and 401 for everything else.
+#
+# This file reads nothing from the repository. What it needs to know about
+# the helper's API is written here.
+#
+# It runs after each Release run that succeeded, on Thursdays, and by hand.
+
+name: Stranger test
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Thursdays at 07:30 UTC. The Release workflow rebuilds the image on
+    # Mondays, and this file runs after that too.
+    - cron: "30 7 * * 4"
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+# Nothing here uses the repository's token.
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GUIDE: https://phlixapp.com/camera-upload
+  RAW: https://raw.githubusercontent.com/jrl8085/phlix-camera-upload/main
+  PACKAGE_PAGE: https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload
+
+jobs:
+  registry:
+    name: The image can be pulled without signing in
+    # After a Release run, only when it succeeded.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: The guide and the files it offers answer
+        run: |
+          set -euo pipefail
+          for path in / /docker-compose.yml /install.sh /SETUP-WITH-AI.md; do
+            status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$GUIDE$path")
+            echo "$GUIDE$path  HTTP $status"
+            [ "$status" = 200 ]
+          done
+
+      # The README sends people to the same files on GitHub. If the two
+      # copies differ, a stranger gets other instructions depending on where
+      # they start.
+      - name: The website's files are the ones on GitHub
+        run: |
+          set -euo pipefail
+          for file in docker-compose.yml install.sh SETUP-WITH-AI.md; do
+            curl -fsSL "$GUIDE/$file" -o "$RUNNER_TEMP/site-$file"
+            curl -fsSL "$RAW/$file" -o "$RUNNER_TEMP/github-$file"
+            if cmp -s "$RUNNER_TEMP/site-$file" "$RUNNER_TEMP/github-$file"; then
+              echo "The same: $file"
+            else
+              echo "::warning title=The website and GitHub differ::$GUIDE/$file is not the same as $RAW/$file"
+              diff "$RUNNER_TEMP/github-$file" "$RUNNER_TEMP/site-$file" | head -n 40 || true
+            fi
+          done
+
+      - name: Each tag, and the platforms in it, without signing in
+        run: |
+          set -euo pipefail
+          image=$(sed -n 's/^ *image: *//p' "$RUNNER_TEMP/site-docker-compose.yml" | head -n 1)
+          echo "The guide's Compose file names the image $image"
+          python3 -I - "$image" <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          image = sys.argv[1]
+          if not image.startswith("ghcr.io/") or ":" not in image.split("/")[-1]:
+              print(f"::error::Expected an image on ghcr.io with a tag, not {image!r}")
+              sys.exit(1)
+          repository, tag = image[len("ghcr.io/"):].rsplit(":", 1)
+          ACCEPT = ", ".join([
+              "application/vnd.oci.image.index.v1+json",
+              "application/vnd.docker.distribution.manifest.list.v2+json",
+              "application/vnd.oci.image.manifest.v1+json",
+              "application/vnd.docker.distribution.manifest.v2+json",
+          ])
+          WANTED = ["linux/amd64", "linux/arm64", "linux/arm/v7"]
+          problems = []
+
+          # The token anyone gets for a public image, with no account.
+          url = f"https://ghcr.io/token?scope=repository:{repository}:pull&service=ghcr.io"
+          with urllib.request.urlopen(url, timeout=30) as response:
+              token = json.load(response)["token"]
+          print(f"::add-mask::{token}")
+          print("An anonymous pull token was given (not shown).")
+
+          def manifest(reference):
+              request = urllib.request.Request(
+                  f"https://ghcr.io/v2/{repository}/manifests/{reference}",
+                  headers={"Authorization": f"Bearer {token}", "Accept": ACCEPT})
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      return response.headers.get("Docker-Content-Digest"), json.load(response)
+              except urllib.error.HTTPError as error:
+                  problems.append(f"{reference}: HTTP {error.code}")
+                  return None, {}
+
+          def platforms(index):
+              found = {}
+              for entry in index.get("manifests", []):
+                  platform = entry.get("platform", {})
+                  name = "/".join(part for part in (platform.get("os"), platform.get("architecture"),
+                                                    platform.get("variant")) if part)
+                  if name != "unknown/unknown":  # provenance and SBOM, not an image
+                      found[name] = entry["digest"]
+              return found
+
+          latest_digest, latest = manifest("latest")
+          version = latest.get("annotations", {}).get("org.opencontainers.image.version", "")
+          revision = latest.get("annotations", {}).get("org.opencontainers.image.revision", "")
+          print(f"latest is version {version or '(not named)'}, built from {revision[:7] or '(not named)'}")
+          tags = [tag, "latest"]
+          if version.count(".") == 2:
+              major, minor, _ = version.split(".")
+              tags += [version, f"{major}.{minor}", major]
+          rows = []
+          for name in dict.fromkeys(tags):
+              digest, index = manifest(name)
+              if digest is None:
+                  continue
+              found = platforms(index)
+              for wanted in WANTED:
+                  if wanted not in found:
+                      problems.append(f"{name}: no {wanted} image")
+                      continue
+                  platform_digest, _ = manifest(found[wanted])
+                  if platform_digest != found[wanted]:
+                      problems.append(f"{name}: the {wanted} image cannot be read")
+              rows.append((name, digest, found))
+              # Every tag of the newest version points at what latest points at.
+              if name != tag and digest != latest_digest:
+                  problems.append(f"{name} is {digest}, but latest is {latest_digest}")
+          # The guide's tag follows its major version. When that is the
+          # newest major version, it is latest too.
+          if version.split(".")[0] == tag and rows and rows[0][1] != latest_digest:
+              problems.append(f"{tag} is {rows[0][1]}, but latest ({version}) is {latest_digest}")
+
+          lines = ["### The image, as anyone can pull it", "",
+                   f"`{image}` from the guide's Compose file. latest is {version}, built from `{revision[:7]}`.", "",
+                   "| Tag | Index digest | " + " | ".join(WANTED) + " |",
+                   "| --- | --- |" + " --- |" * len(WANTED)]
+          for name, digest, found in rows:
+              cells = [f"`{found.get(wanted, 'missing')[:19]}`" for wanted in WANTED]
+              lines.append(f"| `{name}` | `{digest}` | " + " | ".join(cells) + " |")
+              print(f"{name:8} {digest}")
+              for wanted in WANTED:
+                  print(f"         {wanted:13} {found.get(wanted, 'MISSING')}")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("\n".join(lines) + "\n")
+          for problem in problems:
+              print(f"::error::{problem}")
+          sys.exit(1 if problems else 0)
+          PY
+
+      - name: The image's page on GitHub opens without signing in
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --location --output "$RUNNER_TEMP/package.html" --write-out '%{http_code}' "$PACKAGE_PAGE")
+          echo "$PACKAGE_PAGE  HTTP $status"
+          [ "$status" = 200 ]
+          grep --quiet --fixed-strings 'docker pull ghcr.io/jrl8085/phlix-camera-upload' "$RUNNER_TEMP/package.html"
+
+  stranger:
+    name: ${{ matrix.title }}, ${{ matrix.arch }}
+    needs: registry
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        way: [compose, installer, unraid]
+        arch: [amd64, arm64, armv7]
+        exclude:
+          # Unraid runs on amd64 machines only.
+          - way: unraid
+            arch: arm64
+          - way: unraid
+            arch: armv7
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            machine: x86_64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            machine: aarch64
+          - arch: armv7
+            runner: ubuntu-latest
+            machine: armv7l
+            emulate: linux/arm/v7
+          # library: the folder of the Plex photo library that the server has
+          # already. The upload folder goes inside it, as the guide says.
+          - way: compose
+            title: Way C, by hand with Docker Compose
+            library: /mnt/media/Photos
+          - way: installer
+            title: Way A, the one-command installer
+            library: /mnt/media/Photos
+          - way: unraid
+            title: Unraid, with the template
+            library: /mnt/user/Photos
+    env:
+      LIBRARY: ${{ matrix.library }}
+      PHOTOS: ${{ matrix.library }}/Camera Uploads
+      CONTAINER: phlix-camera-upload
+    steps:
+      # -- The machine, before the guide starts ------------------------------
+
+      - name: A clean machine, with no sign-in to any registry
+        run: |
+          set -euo pipefail
+          # Docker reads its sign-ins from DOCKER_CONFIG. An empty one means
+          # none, whatever this machine had before.
+          mkdir -p "$RUNNER_TEMP/docker-config"
+          echo '{}' > "$RUNNER_TEMP/docker-config/config.json"
+          echo "DOCKER_CONFIG=$RUNNER_TEMP/docker-config" >> "$GITHUB_ENV"
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          if ! docker compose version >/dev/null 2>&1 && [ -d "$HOME/.docker/cli-plugins" ]; then
+            ln -s "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins"
+          fi
+          echo "This machine: $(uname -m), $(. /etc/os-release && echo "$PRETTY_NAME")"
+          docker version --format 'Docker {{.Server.Version}}, {{.Server.Os}}/{{.Server.Arch}}'
+          docker compose version
+          checked_out=0
+          if [ -d "$GITHUB_WORKSPACE" ]; then
+            checked_out=$(ls -A "$GITHUB_WORKSPACE" | wc -l)
+          fi
+          echo "Files checked out: $checked_out"
+          [ "$checked_out" -eq 0 ]
+
+      - name: Emulate a 32-bit Arm machine
+        if: matrix.emulate
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm
+
+      - name: Docker makes 32-bit Arm containers from here on
+        if: matrix.emulate
+        run: echo "DOCKER_DEFAULT_PLATFORM=${{ matrix.emulate }}" >> "$GITHUB_ENV"
+
+      - name: The server has a Plex photo library, and Plex on port 32400
+        run: |
+          set -euo pipefail
+          # The library's folder, owned as on such a server: by a normal user,
+          # or on Unraid by nobody:users (99:100).
+          sudo mkdir -p "$LIBRARY"
+          if [ "${{ matrix.way }}" = unraid ]; then
+            sudo chown 99:100 "$LIBRARY"
+            sudo chmod 0777 "$LIBRARY"
+            sudo mkdir -p /mnt/user/appdata
+            sudo chown 99:100 /mnt/user/appdata
+          else
+            sudo chown "$(id -u):$(id -g)" "$LIBRARY"
+          fi
+          ls -ldn "$LIBRARY"
+
+          cat > "$RUNNER_TEMP/plex-stand-in.py" <<'PY'
+          """Stands in for Plex Media Server on port 32400 of this machine.
+
+          The helper asks Plex two things without a sign-in: /identity, which
+          every Plex server answers, and /accounts, which a claimed server
+          refuses with 401. This answers both that way, and logs each request.
+          """
+          import http.server
+          import json
+          import sys
+
+          IDENTITY = json.dumps({"MediaContainer": {
+              "size": 0, "claimed": True,
+              "machineIdentifier": "stranger-test-plex-stand-in",
+              "version": "1.41.0.0000-stand-in"}}).encode()
+
+
+          class Plex(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path.split("?")[0] == "/identity":
+                      self.send_response(200)
+                      self.send_header("Content-Type", "application/json")
+                      self.send_header("Content-Length", str(len(IDENTITY)))
+                      self.end_headers()
+                      self.wfile.write(IDENTITY)
+                  else:
+                      self.send_response(401)
+                      self.send_header("Content-Length", "0")
+                      self.end_headers()
+
+              def log_message(self, format, *args):
+                  sys.stderr.write("%s %s\n" % (self.client_address[0], format % args))
+                  sys.stderr.flush()
+
+
+          http.server.ThreadingHTTPServer(("0.0.0.0", 32400), Plex).serve_forever()
+          PY
+          nohup python3 -I "$RUNNER_TEMP/plex-stand-in.py" > "$RUNNER_TEMP/plex-stand-in.log" 2>&1 &
+          for attempt in $(seq 1 20); do
+            if curl --silent --fail http://127.0.0.1:32400/identity; then
+              echo
+              break
+            fi
+            sleep 0.5
+          done
+          curl --silent --fail http://127.0.0.1:32400/identity > /dev/null
+          echo "PLEX_MACHINE_ID=stranger-test-plex-stand-in" >> "$GITHUB_ENV"
+
+      # -- The test's own tools ----------------------------------------------
+
+      - name: The test's tools, a phone and a person at a terminal
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/phone.py" <<'PY'
+          """Acts as the Phlix app does with Camera Upload.
+
+              python3 phone.py first SERVER PHOTOS STATE
+              python3 phone.py again SERVER PHOTOS STATE
+
+          first: finds the helper at SERVER on port 7459, keeps the certificate
+          it shows, pairs two devices with the pairing code (in the environment
+          variable PAIRING_CODE), uploads two photos and checks where they are
+          in PHOTOS, the upload folder as this machine sees it. It leaves what
+          the second run needs in the file STATE.
+
+          again: after an update and a restart, the first device is still
+          paired, the helper shows the same certificate, and nothing is stored
+          twice.
+
+          The helper's API, version 1, as the app uses it: GET /api/v1/hello,
+          POST /api/v1/pair, PUT /api/v1/assets/KEY, POST /api/v1/assets/check,
+          GET /api/v1/status. Nothing secret is printed.
+          """
+
+          import base64
+          import datetime
+          import hashlib
+          import http.client
+          import json
+          import os
+          import ssl
+          import sys
+          import uuid
+
+          PORT = 7459
+          SERVICE = "phlix-camera-upload"
+          IPHONE = "Stranger's iPhone"
+          IPAD = "Stranger's iPad"
+
+          # A 16 x 16 grey JPEG of 342 bytes.
+          JPEG = base64.b64decode(
+              "/9j/4AAQSkZJRgABAQAASABIAAD/wAALCAAQABABAREA/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAEC"
+              "AwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0Kx"
+              "wRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1"
+              "dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ"
+              "2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9sAQwAEBAQEBAQGBAQGCQYGBgkMCQkJCQwPDAwMDAwPEg8P"
+              "Dw8PDxISEhISEhISFRUVFRUVGRkZGRkcHBwcHBwcHBwc/90ABAAC/9oACAEBAAA/ACiv/9Aor//Z")
+
+          passed = 0
+          failed = 0
+
+
+          def check(ok, what, why=""):
+              global passed, failed
+              if ok:
+                  passed += 1
+                  print(f"PASS  {what}")
+              else:
+                  failed += 1
+                  print(f"FAIL  {what}")
+                  if why:
+                      print(f"      {why}")
+              return bool(ok)
+
+
+          def finish():
+              print()
+              if failed:
+                  print(f"The phone found {failed} problem(s) in {passed + failed} checks.")
+                  return 1
+              print(f"The phone is satisfied: {passed} checks passed.")
+              return 0
+
+
+          class Photo:
+              """A photo in the phone's library, and what the app sends for it."""
+
+              def __init__(self, name, created, note):
+                  self.name = name
+                  self.created = created  # the phone's local time, with its offset
+                  self.when = datetime.datetime.fromisoformat(created)
+                  text = note.encode("ascii")
+                  comment = b"\xff\xfe" + (len(text) + 2).to_bytes(2, "big") + text
+                  cut = 4 + int.from_bytes(JPEG[4:6], "big")  # just after the JFIF header
+                  self.data = JPEG[:cut] + comment + JPEG[cut:]
+                  self.sha256 = hashlib.sha256(self.data).hexdigest()
+                  # The app's key: v1|original file name|creation seconds|kind.
+                  seconds = int(self.when.timestamp())
+                  self.key = hashlib.sha256(f"v1|{name}|{seconds}|photo".encode()).hexdigest()
+                  self.month = f"{self.when.year:04d}/{self.when.year:04d}-{self.when.month:02d}"
+
+
+          # Two different photos with the same name, taken in the same month.
+          FIRST = Photo("IMG_0001.JPG", "2025-07-04T21:30:00-05:00", "Phlix stranger test, first photo")
+          SECOND = Photo("IMG_0001.JPG", "2025-07-19T08:00:00-05:00", "Phlix stranger test, second photo")
+
+
+          class Phone:
+              def __init__(self, server, pin=None):
+                  self.server = server
+                  self.pin = pin
+                  # No authority vouches for the helper's own certificate. The app
+                  # keeps its SHA-256 when it pairs, and accepts no other after that.
+                  self.context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                  self.context.check_hostname = False
+                  self.context.verify_mode = ssl.CERT_NONE
+
+              def call(self, method, path, body=None, headers=None, token=None):
+                  connection = http.client.HTTPSConnection(self.server, PORT, timeout=120, context=self.context)
+                  try:
+                      connection.connect()
+                      shown = hashlib.sha256(connection.sock.getpeercert(binary_form=True)).hexdigest()
+                      if self.pin is not None and shown != self.pin:
+                          check(False, f"{method} {path}: the helper shows the certificate the app kept",
+                                f"It shows {shown[:16]}..., the app kept {self.pin[:16]}... The app would stop here.")
+                          sys.exit(finish())
+                      headers = dict(headers or {})
+                      if token is not None:
+                          headers["Authorization"] = "Bearer " + token
+                      if isinstance(body, dict):
+                          body = json.dumps(body).encode("utf-8")
+                          headers["Content-Type"] = "application/json"
+                      connection.request(method, path, body=body, headers=headers)
+                      response = connection.getresponse()
+                      raw = response.read()
+                  finally:
+                      connection.close()
+                  try:
+                      answer = json.loads(raw) if raw else {}
+                  except ValueError:
+                      answer = {}
+                  return response.status, answer, shown
+
+              def upload(self, token, photo):
+                  return self.call("PUT", f"/api/v1/assets/{photo.key}", photo.data, {
+                      "Content-Type": "application/octet-stream",
+                      "X-Phlix-Filename": photo.name,
+                      "X-Phlix-SHA256": photo.sha256,
+                      "X-Phlix-Created": photo.created,
+                      "X-Phlix-Kind": "photo",
+                  }, token=token)
+
+
+          def why(status, answer):
+              error = answer.get("error") if isinstance(answer, dict) else None
+              message = error.get("message") if isinstance(error, dict) else ""
+              return f"HTTP {status}. {message}".strip()
+
+
+          def files_in(photos):
+              found = []
+              for root, folders, names in os.walk(photos):
+                  folders[:] = [name for name in folders if name != ".phlix-upload-tmp"]
+                  found += [os.path.relpath(os.path.join(root, name), photos) for name in names]
+              return sorted(found)
+
+
+          def on_disk(photos, relpath, photo, owner):
+              path = os.path.join(photos, relpath)
+              if not check(os.path.isfile(path), f"the file is on the server: {path}"):
+                  return
+              with open(path, "rb") as handle:
+                  check(handle.read() == photo.data, "  with the bytes that were sent")
+              info = os.stat(path)
+              stamp = datetime.datetime.fromtimestamp(info.st_mtime, datetime.timezone.utc)
+              check(int(info.st_mtime) == int(photo.when.timestamp()),
+                    f"  its modification time is the photo's date, {photo.created}",
+                    f"It is {stamp.isoformat()}.")
+              check((info.st_uid, info.st_gid) == owner,
+                    f"  it belongs to user {owner[0]}, group {owner[1]}: the owner of the upload folder",
+                    f"It belongs to user {info.st_uid}, group {info.st_gid}.")
+
+
+          def first(server, photos, state_path):
+              code = os.environ.get("PAIRING_CODE", "")
+              phone = Phone(server)
+
+              status, hello, shown = phone.call("GET", "/api/v1/hello")
+              if not check(status == 200 and hello.get("service") == SERVICE and hello.get("apiVersion") == 1,
+                           f"the helper answers at https://{server}:{PORT}: {SERVICE} {hello.get('version')}, API 1",
+                           why(status, hello)):
+                  return finish()
+              check((hello.get("tls") or {}).get("sha256") == shown,
+                    f"the certificate it shows is the one it names; the app keeps it ({shown[:16]}...)")
+              phone.pin = shown
+              pairing = hello.get("pairing") or {}
+              check(pairing.get("code") is True, "phones may pair with the pairing code")
+              plex_id = os.environ.get("PLEX_MACHINE_ID")
+              if plex_id:
+                  check((hello.get("plex") or {}).get("machineIdentifier") == plex_id,
+                        "the helper belongs to this server's Plex (the same machineIdentifier)")
+                  check(pairing.get("plex") is True, "the owner of the Plex server could pair without a code")
+
+              # A family member pairs with the code, typed as it was printed.
+              status, answer, _ = phone.call("POST", "/api/v1/pair", {
+                  "method": "code", "code": code, "deviceId": str(uuid.uuid4()).upper(),
+                  "deviceName": IPHONE, "folderName": IPHONE})
+              token = answer.get("deviceToken")
+              if not check(status == 200 and token and answer.get("folder") == IPHONE,
+                           f'pair "{IPHONE}" with the pairing code as printed; its folder is "{IPHONE}"',
+                           why(status, answer)):
+                  return finish()
+
+              first_path = f"{IPHONE}/{FIRST.month}/{FIRST.name}"
+              status, answer, _ = phone.upload(token, FIRST)
+              check(status == 201 and answer.get("status") == "stored" and answer.get("path") == first_path
+                    and answer.get("bytes") == len(FIRST.data),
+                    f"upload {FIRST.name} of {FIRST.created}: stored as {first_path}",
+                    why(status, answer) + f" Path: {answer.get('path')!r}")
+
+              status, answer, _ = phone.upload(token, FIRST)
+              check(status == 200 and answer.get("status") == "duplicate" and answer.get("path") == first_path,
+                    "upload it again, as after a lost answer: duplicate, nothing stored twice", why(status, answer))
+
+              second_path = f"{IPHONE}/{SECOND.month}/IMG_0001 (2).JPG"
+              status, answer, _ = phone.upload(token, SECOND)
+              check(status == 201 and answer.get("status") == "stored" and answer.get("path") == second_path,
+                    f"another photo with the same name, same month: kept as {second_path}",
+                    why(status, answer) + f" Path: {answer.get('path')!r}")
+
+              status, answer, _ = phone.call("POST", "/api/v1/assets/check",
+                                             {"items": [FIRST.key, SECOND.key, "0" * 64]}, token=token)
+              check(status == 200 and answer.get("known") == [FIRST.key, SECOND.key],
+                    "check: the helper knows both photos and nothing else", why(status, answer))
+
+              status, answer, _ = phone.call("GET", "/api/v1/status", token=token)
+              device = answer.get("device") or {}
+              check(status == 200 and device.get("folder") == IPHONE and device.get("assetCount") == 2
+                    and (answer.get("storage") or {}).get("writable") is True,
+                    "status: 2 files from this device, and the upload folder can be written to",
+                    why(status, answer) + f" {device}")
+
+              # A second device. The guide says capital letters, spaces and the
+              # dash do not matter: type the code in small letters, with a space.
+              typed = code.lower().replace("-", " ")
+              status, answer, _ = phone.call("POST", "/api/v1/pair", {
+                  "method": "code", "code": typed, "deviceId": str(uuid.uuid4()).upper(),
+                  "deviceName": IPAD, "folderName": IPAD})
+              ipad_token = answer.get("deviceToken")
+              if check(status == 200 and ipad_token and answer.get("folder") == IPAD,
+                       f'pair "{IPAD}" with the code typed in small letters and a space for the dash',
+                       why(status, answer)):
+                  # The same photo, on the second device too: stored once.
+                  status, answer, _ = phone.upload(ipad_token, FIRST)
+                  check(status == 200 and answer.get("status") == "duplicate" and answer.get("path") == "",
+                        "the same photo from the second device: stored once, and the first device's path is not given",
+                        why(status, answer) + f" Path: {answer.get('path')!r}")
+
+              status, answer, _ = phone.call("GET", "/api/v1/status", token="stranger-test-wrong-token-000000000000")
+              check(status == 401, "a wrong token is refused", why(status, answer))
+
+              # What is on the server's disk.
+              owner = (os.stat(photos).st_uid, os.stat(photos).st_gid)
+              on_disk(photos, first_path, FIRST, owner)
+              on_disk(photos, second_path, SECOND, owner)
+              for folder in (IPHONE, f"{IPHONE}/{FIRST.month.split('/')[0]}", f"{IPHONE}/{FIRST.month}"):
+                  try:
+                      info = os.stat(os.path.join(photos, folder))
+                  except OSError as error:
+                      check(False, f'the folder "{folder}" is there', str(error))
+                      continue
+                  check((info.st_uid, info.st_gid) == owner, f'the folder "{folder}" belongs to the same user',
+                        f"It belongs to user {info.st_uid}, group {info.st_gid}.")
+              stored = files_in(photos)
+              check(stored == sorted([first_path, second_path]),
+                    "the upload folder holds these two files and nothing else", f"It holds {stored}.")
+
+              state = {"pin": phone.pin, "token": token, "first": first_path, "second": second_path}
+              descriptor = os.open(state_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+              with os.fdopen(descriptor, "w") as handle:
+                  json.dump(state, handle)
+              return finish()
+
+
+          def again(server, photos, state_path):
+              with open(state_path) as handle:
+                  state = json.load(handle)
+              phone = Phone(server, pin=state["pin"])
+              status, hello, _ = phone.call("GET", "/api/v1/hello")
+              check(status == 200 and (hello.get("tls") or {}).get("sha256") == state["pin"],
+                    "the helper shows the certificate the phone kept", why(status, hello))
+              status, answer, _ = phone.call("GET", "/api/v1/status", token=state["token"])
+              device = answer.get("device") or {}
+              check(status == 200 and device.get("folder") == IPHONE and device.get("assetCount") == 2,
+                    f'"{IPHONE}" is still paired, with its folder and its 2 files', why(status, answer))
+              status, answer, _ = phone.call("POST", "/api/v1/assets/check",
+                                             {"items": [FIRST.key, SECOND.key]}, token=state["token"])
+              check(status == 200 and answer.get("known") == [FIRST.key, SECOND.key],
+                    "the helper still knows both photos, so the phone sends neither again", why(status, answer))
+              status, answer, _ = phone.upload(state["token"], FIRST)
+              check(status == 200 and answer.get("status") == "duplicate" and answer.get("path") == state["first"],
+                    "the first photo sent again: duplicate, at the same path", why(status, answer))
+              stored = files_in(photos)
+              check(stored == sorted([state["first"], state["second"]]),
+                    "the upload folder still holds the same two files", f"It holds {stored}.")
+              return finish()
+
+
+          if __name__ == "__main__":
+              if len(sys.argv) != 5 or sys.argv[1] not in ("first", "again"):
+                  print(__doc__, file=sys.stderr)
+                  sys.exit(2)
+              command, server, photos, state_path = sys.argv[1:]
+              sys.exit((first if command == "first" else again)(server, photos, state_path))
+          PY
+
+          cat > "$RUNNER_TEMP/person.py" <<'PY'
+          """Runs a command on a terminal of its own, and answers its questions as a
+          person at the terminal would.
+
+              python3 person.py TRANSCRIPT COMMAND [QUESTION ANSWER]...
+
+          QUESTION is a regular expression for the end of what the program shows
+          when it waits for an answer. The person waits a moment, types ANSWER and
+          presses Return. Each question must be asked, once. A question asked
+          again, or a silence that looks like a question this list does not hold,
+          ends the run with status 3. Otherwise the status is the command's own.
+          TRANSCRIPT receives everything the terminal showed, as plain text.
+          """
+
+          import os
+          import pty
+          import re
+          import select
+          import signal
+          import sys
+          import time
+
+          SILENCE = 300
+
+          ESCAPES = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Za-z0-9]")
+
+
+          def plain(data):
+              text = ESCAPES.sub(b"", data).replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+              return text.decode("utf-8", "replace")
+
+
+          def main():
+              if len(sys.argv) < 3 or len(sys.argv) % 2 == 0:
+                  print(__doc__, file=sys.stderr)
+                  return 2
+              transcript_path, command = sys.argv[1], sys.argv[2]
+              waiting = [(re.compile(sys.argv[i] + r"\s*$"), sys.argv[i + 1]) for i in range(3, len(sys.argv), 2)]
+              answered = []
+              print(f"$ {command}", flush=True)
+              pid, terminal = pty.fork()
+              if pid == 0:
+                  os.execvp("bash", ["bash", "-c", command])
+
+              seen = b""
+              mark = 0
+              last = time.monotonic()
+              problem = None
+              while problem is None:
+                  ready, _, _ = select.select([terminal], [], [], 1.0)
+                  if not ready:
+                      if time.monotonic() - last > SILENCE:
+                          lines = plain(seen[mark:]).strip().splitlines() or [""]
+                          problem = f"Nothing happened for {SILENCE} seconds after: {lines[-1]!r}"
+                      continue
+                  try:
+                      chunk = os.read(terminal, 65536)
+                  except OSError:
+                      chunk = b""
+                  if not chunk:
+                      break
+                  seen += chunk
+                  last = time.monotonic()
+                  sys.stdout.write(plain(chunk))
+                  sys.stdout.flush()
+                  tail = plain(seen[mark:])
+                  if any(pattern.search(tail) for pattern, _ in answered):
+                      problem = f"The program asked again: {tail.strip().splitlines()[-1]!r}"
+                      break
+                  for pair in waiting:
+                      if pair[0].search(tail):
+                          # A person reads the question first. If more text comes,
+                          # it was not the end of what the program had to say.
+                          more, _, _ = select.select([terminal], [], [], 1.0)
+                          if more:
+                              break
+                          os.write(terminal, pair[1].encode() + b"\r")
+                          waiting.remove(pair)
+                          answered.append(pair)
+                          mark = len(seen)
+                          break
+
+              if problem is not None:
+                  print(f"\nThe person at the terminal stopped: {problem}", flush=True)
+                  try:
+                      os.kill(pid, signal.SIGTERM)
+                  except ProcessLookupError:
+                      pass
+              _, status = os.waitpid(pid, 0)
+              with open(transcript_path, "w", encoding="utf-8") as handle:
+                  handle.write(plain(seen))
+              if problem is not None:
+                  return 3
+              if waiting:
+                  print(f"\nThese questions were never asked: {[pattern.pattern for pattern, _ in waiting]}")
+                  return 3
+              return os.waitstatus_to_exitcode(status)
+
+
+          sys.exit(main())
+          PY
+          python3 -I -m py_compile "$RUNNER_TEMP/phone.py" "$RUNNER_TEMP/person.py"
+
+      # -- Way C, by hand with Docker Compose --------------------------------
+
+      - name: "Way C, step 1: make the upload folder, as the user who owns the photos"
+        if: matrix.way == 'compose'
+        run: |
+          set -euo pipefail
+          mkdir "$PHOTOS"
+          ls -ldn "$PHOTOS"
+
+      - name: "Way C, steps 2 and 3: a folder for the helper, and the Compose file"
+        if: matrix.way == 'compose'
+        run: |
+          set -euo pipefail
+          cd ~
+          mkdir phlix-camera-upload
+          cd phlix-camera-upload
+          curl -fsSLO https://phlixapp.com/camera-upload/docker-compose.yml
+          cp docker-compose.yml "$RUNNER_TEMP/docker-compose.as-downloaded.yml"
+          ls -l docker-compose.yml
+
+      # The guide: find the comment CHANGE THE NEXT LINE, and on the line
+      # below it replace /CHANGE/THIS/Photos/Camera Uploads with the upload
+      # folder. That edit, and no other.
+      - name: "Way C, step 4: change the one line"
+        if: matrix.way == 'compose'
+        run: |
+          set -euo pipefail
+          cd ~/phlix-camera-upload
+          python3 -I - "$PHOTOS" <<'PY'
+          import sys
+
+          with open("docker-compose.yml", encoding="utf-8") as handle:
+              lines = handle.read().split("\n")
+          marks = [number for number, line in enumerate(lines) if "CHANGE THE NEXT LINE" in line]
+          if len(marks) != 1:
+              sys.exit(f"The comment CHANGE THE NEXT LINE is there {len(marks)} times, not once.")
+          below = marks[0] + 1
+          placeholder = "/CHANGE/THIS/Photos/Camera Uploads"
+          if placeholder not in lines[below]:
+              sys.exit(f"The line below the comment does not hold {placeholder}: {lines[below]!r}")
+          lines[below] = lines[below].replace(placeholder, sys.argv[1])
+          with open("docker-compose.yml", "w", encoding="utf-8") as handle:
+              handle.write("\n".join(lines))
+          PY
+          set +e
+          diff "$RUNNER_TEMP/docker-compose.as-downloaded.yml" docker-compose.yml | tee "$RUNNER_TEMP/edit.diff"
+          set -e
+          [ "$(grep -c '^[<>]' "$RUNNER_TEMP/edit.diff")" -eq 2 ]
+
+      - name: "Way C, step 5: start the helper"
+        if: matrix.way == 'compose'
+        run: |
+          set -euo pipefail
+          cd ~/phlix-camera-upload
+          docker compose up -d
+
+      # A person types the next command a few seconds later. If the helper is
+      # still starting, doctor says so: noted here, and not a failure. The
+      # check that counts comes once the helper answers.
+      - name: "Way C, step 6: ask the helper whether everything is right, straight away"
+        if: matrix.way == 'compose'
+        run: |
+          set -uo pipefail
+          sleep 3
+          docker exec phlix-camera-upload python -m phlix_upload doctor | tee "$RUNNER_TEMP/doctor-at-once.txt"
+          if grep --quiet --fixed-strings "Nothing needs fixing." "$RUNNER_TEMP/doctor-at-once.txt"; then
+            echo "doctor, 3 seconds after the start: Nothing needs fixing." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning title=doctor too early::3 seconds after docker compose up -d, doctor did not say 'Nothing needs fixing.' A person who runs the guide's next command at once sees this."
+            echo "doctor, 3 seconds after the start: **found a problem** (the helper was still starting)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # -- Way A, the one-command installer ----------------------------------
+
+      - name: "Way A: try it first with --dry-run, which changes nothing"
+        if: matrix.way == 'installer'
+        run: |
+          set -euo pipefail
+          python3 -I "$RUNNER_TEMP/person.py" "$RUNNER_TEMP/dry-run.txt" \
+            'curl -fsSL https://phlixapp.com/camera-upload/install.sh | sh -s -- --dry-run' \
+            'Upload folder:' "$PHOTOS"
+          grep --quiet --fixed-strings "Nothing was changed." "$RUNNER_TEMP/dry-run.txt"
+          test ! -e "$PHOTOS"
+          test ! -e ~/phlix-camera-upload
+
+      - name: "Way A: one command, answering its questions"
+        if: matrix.way == 'installer'
+        run: |
+          set -euo pipefail
+          python3 -I "$RUNNER_TEMP/person.py" "$RUNNER_TEMP/install.txt" \
+            'curl -fsSL https://phlixapp.com/camera-upload/install.sh | sh' \
+            'Upload folder:' "$PHOTOS" \
+            'Make it\? \[Y/n\]' 'y'
+          grep --quiet --fixed-strings "Phlix Camera Upload is running." "$RUNNER_TEMP/install.txt"
+          echo "The file it wrote, the lines that differ from the downloaded one:"
+          grep -n -e '^ *image:' -e '^ *source:' -e '^ *- "[0-9.:]*7459"' ~/phlix-camera-upload/docker-compose.yml
+
+      # -- Unraid, with the template -----------------------------------------
+
+      # The guide: open the Unraid terminal (it runs as root), make the
+      # upload folder in a share of the Plex library, give it to 99:100,
+      # then download the template.
+      - name: "Unraid: make the upload folder, and give it to Unraid's standard user and group"
+        if: matrix.way == 'unraid'
+        run: |
+          set -euo pipefail
+          sudo mkdir "/mnt/user/Photos/Camera Uploads"
+          sudo chown 99:100 "/mnt/user/Photos/Camera Uploads"
+          ls -ldn "$PHOTOS"
+
+      - name: "Unraid: download the template, as the guide says"
+        if: matrix.way == 'unraid'
+        run: |
+          set -euo pipefail
+          # The Unraid terminal runs as root, and this folder is on the
+          # flash drive of every Unraid server.
+          sudo mkdir -p /boot/config/plugins/dockerMan/templates-user
+          sudo wget -O /boot/config/plugins/dockerMan/templates-user/my-phlix-camera-upload.xml https://raw.githubusercontent.com/jrl8085/phlix-camera-upload/main/unraid/phlix-camera-upload.xml
+          cp /boot/config/plugins/dockerMan/templates-user/my-phlix-camera-upload.xml "$RUNNER_TEMP/template.xml"
+
+      - name: "Unraid: the template is well-formed and names the public image"
+        if: matrix.way == 'unraid'
+        run: |
+          set -euo pipefail
+          compose_image=$(curl -fsSL "$GUIDE/docker-compose.yml" | sed -n 's/^ *image: *//p' | head -n 1)
+          python3 -I - "$RUNNER_TEMP/template.xml" "$compose_image" "$RAW/unraid/phlix-camera-upload.xml" <<'PY'
+          import json
+          import sys
+          import urllib.request
+          import xml.dom.minidom
+          import xml.etree.ElementTree as ElementTree
+
+          path, compose_image, template_url = sys.argv[1:]
+          problems = []
+          xml.dom.minidom.parse(path)
+          print("Well-formed XML.")
+          root = ElementTree.parse(path).getroot()
+
+          def text(tag):
+              return (root.findtext(tag) or "").strip()
+
+          expect = {
+              "Name": "phlix-camera-upload",
+              "Repository": compose_image,
+              "Network": "bridge",
+              "Privileged": "false",
+              "WebUI": "https://[IP]:[PORT:7459]/",
+              "TemplateURL": template_url,
+          }
+          if root.tag != "Container":
+              problems.append(f"the root element is <{root.tag}>, not <Container>")
+          for tag, wanted in expect.items():
+              if text(tag) != wanted:
+                  problems.append(f"<{tag}> is {text(tag)!r}, not {wanted!r}")
+          if "--add-host=host.docker.internal:host-gateway" not in text("ExtraParams").split():
+              problems.append("<ExtraParams> lacks --add-host=host.docker.internal:host-gateway")
+          configs = {entry.get("Name"): entry for entry in root.findall("Config")}
+          wanted_configs = {
+              "Port": ("Port", "7459", "tcp", "7459"),
+              "Photos": ("Path", "/photos", "rw", ""),
+              "Helper data": ("Path", "/config", "rw", "/mnt/user/appdata/phlix-camera-upload"),
+              "PUID": ("Variable", "PUID", "", "99"),
+              "PGID": ("Variable", "PGID", "", "100"),
+          }
+          for name, (kind, target, mode, value) in wanted_configs.items():
+              entry = configs.get(name)
+              if entry is None:
+                  problems.append(f"no Config named {name}")
+                  continue
+              found = (entry.get("Type"), entry.get("Target"), entry.get("Mode") or "", (entry.text or "").strip())
+              if found != (kind, target, mode, value):
+                  problems.append(f"Config {name} is {found}, not {(kind, target, mode, value)}")
+          if configs.get("Photos") is not None and configs["Photos"].get("Required") != "true":
+              problems.append("Photos is not Required, so Unraid would let Apply go without it")
+          print(f"It names the image {text('Repository')}, the one the guide's Compose file names.")
+
+          # The image it names comes down without signing in, for amd64: Unraid runs there.
+          repository, tag = text("Repository")[len("ghcr.io/"):].rsplit(":", 1)
+          url = f"https://ghcr.io/token?scope=repository:{repository}:pull&service=ghcr.io"
+          with urllib.request.urlopen(url, timeout=30) as response:
+              token = json.load(response)["token"]
+          print(f"::add-mask::{token}")
+          request = urllib.request.Request(f"https://ghcr.io/v2/{repository}/manifests/{tag}", headers={
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              index = json.load(response)
+              digest = response.headers.get("Docker-Content-Digest")
+          platforms = {(entry.get("platform") or {}).get("architecture") for entry in index.get("manifests", [])}
+          if "amd64" not in platforms:
+              problems.append(f"{text('Repository')} has no amd64 image")
+          print(f"{text('Repository')} is {digest}, pulled anonymously; amd64 is in it.")
+          for problem in problems:
+              print(f"::error::Unraid template: {problem}")
+          sys.exit(1 if problems else 0)
+          PY
+
+      - name: "Unraid: the template's links answer"
+        if: matrix.way == 'unraid'
+        run: |
+          set -euo pipefail
+          for tag in Support Project Registry Icon TemplateURL; do
+            url=$(sed -n "s|^ *<$tag>\(.*\)</$tag>.*|\1|p" "$RUNNER_TEMP/template.xml" | head -n 1)
+            status=$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' "$url")
+            echo "$tag  $url  HTTP $status"
+            [ "$status" = 200 ]
+          done
+
+      # Unraid's Docker tab turns the template into one docker run command:
+      # each Path is a -v, each Port a -p, each Variable an -e (an empty one
+      # too), then ExtraParams and the Repository. The person sets Photos
+      # and leaves every other field as the template has it.
+      - name: "Unraid: Add Container, set Photos, Apply"
+        if: matrix.way == 'unraid'
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/unraid-apply.py" <<'PY'
+          import shlex
+          import subprocess
+          import sys
+          import xml.etree.ElementTree as ElementTree
+
+          template, photos = sys.argv[1:]
+          root = ElementTree.parse(template).getroot()
+
+          def text(tag):
+              return (root.findtext(tag) or "").strip()
+
+          name = text("Name")
+          command = ["docker", "run", "-d", f"--name={name}", f"--net={text('Network')}",
+                     "-e", "TZ=America/Chicago", "-e", "HOST_OS=Unraid", "-e", "HOST_HOSTNAME=Tower",
+                     "-e", f"HOST_CONTAINERNAME={name}"]
+          variables, ports, volumes = [], [], []
+          for entry in root.findall("Config"):
+              kind, target = entry.get("Type"), entry.get("Target") or ""
+              value = (entry.text or "").strip() or (entry.get("Default") or "")
+              if entry.get("Name") == "Photos":
+                  value = photos
+              if entry.get("Required") == "true" and not value:
+                  sys.exit(f"Unraid refuses Apply: {entry.get('Name')} is empty")
+              if kind == "Path":
+                  volumes += ["-v", f"{value}:{target}:{entry.get('Mode') or 'rw'}"]
+              elif kind == "Port":
+                  ports += ["-p", f"{value}:{target}/{entry.get('Mode') or 'tcp'}"]
+              elif kind == "Variable":
+                  variables += ["-e", f"{target}={value}"]
+          labels = ["-l", "net.unraid.docker.managed=dockerman",
+                    "-l", f"net.unraid.docker.webui={text('WebUI')}",
+                    "-l", f"net.unraid.docker.icon={text('Icon')}"]
+          command += variables + labels + ports + volumes + shlex.split(text("ExtraParams"))
+          command += [text("Repository")] + shlex.split(text("PostArgs"))
+          print(shlex.join(command), flush=True)
+          sys.exit(subprocess.run(command).returncode)
+          PY
+          python3 -I "$RUNNER_TEMP/unraid-apply.py" "$RUNNER_TEMP/template.xml" "$PHOTOS"
+
+      # -- Check that it runs (every way) ------------------------------------
+
+      - name: The helper answers
+        run: |
+          set -uo pipefail
+          for attempt in $(seq 1 90); do
+            if [ "$(curl --silent --insecure --max-time 5 https://127.0.0.1:7459/healthz)" = ok ]; then
+              echo "The helper answered after $attempt tries."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::The helper did not answer on https://127.0.0.1:7459/healthz in 3 minutes."
+          docker ps --all
+          exit 1
+
+      - name: The image that runs, and the machine it runs on
+        run: |
+          set -euo pipefail
+          image=$(docker inspect --format '{{.Config.Image}}' phlix-camera-upload)
+          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")
+          platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}{{with .Variant}}/{{.}}{{end}}' "$image")
+          machine=$(docker exec phlix-camera-upload uname -m)
+          version=$(docker exec phlix-camera-upload python -m phlix_upload version)
+          echo "Image:    $image"
+          echo "Digest:   $digest"
+          echo "Platform: $platform"
+          echo "Inside:   $machine, helper $version"
+          [ "$machine" = "${{ matrix.machine }}" ]
+          {
+            echo "### ${{ matrix.title }}, ${{ matrix.arch }}"
+            echo
+            echo "- Image: \`$image\`, $platform, helper $version"
+            echo "- Pulled: \`$digest\`"
+            echo "- Inside the container: \`uname -m\` is \`$machine\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The server's address, as the guide says to find it: the installer
+      # prints it in the line that starts with "Status page:"; on Linux,
+      # hostname -I shows it first; on Unraid, WebUI opens it.
+      - name: "Check that it runs: the status page at the server's address"
+        run: |
+          set -euo pipefail
+          address=$(hostname -I | awk '{ print $1 }')
+          case "${{ matrix.way }}" in
+            installer)
+              url=$(sed -n 's/^ *Status page: *//p' "$RUNNER_TEMP/install.txt" | head -n 1)
+              ;;
+            unraid)
+              webui=$(sed -n 's|^ *<WebUI>\(.*\)</WebUI>.*|\1|p' "$RUNNER_TEMP/template.xml")
+              url=$(printf '%s' "$webui" | sed -e "s/\[IP\]/$address/" -e 's/\[PORT:7459\]/7459/')
+              ;;
+            *)
+              url="https://$address:7459"
+              ;;
+          esac
+          echo "The status page: $url"
+          server=$(printf '%s' "$url" | sed -n 's|^https://\([^:/]*\).*|\1|p')
+          echo "SERVER=$server" >> "$GITHUB_ENV"
+          curl --silent --show-error --insecure --max-time 30 "$url" > "$RUNNER_TEMP/status-page.html"
+          python3 -I -c '
+          import html, re, sys
+          page = open(sys.argv[1], encoding="utf-8").read()
+          for label, value in re.findall(r"<th[^>]*>(.*?)</th>\s*<td[^>]*>(.*?)</td>", page, re.S):
+              print(f"{html.unescape(label)}: {html.unescape(value)}")
+          ' "$RUNNER_TEMP/status-page.html" | tee "$RUNNER_TEMP/status-page.txt"
+          grep --quiet '^Upload folder: Ready$' "$RUNNER_TEMP/status-page.txt"
+          grep --quiet '^Plex Media Server: Found' "$RUNNER_TEMP/status-page.txt"
+          # The guide: the helper does not answer http://.
+          if curl --silent --max-time 10 "http://$server:7459/" > /dev/null; then
+            echo "::error::The helper answered http://, and the guide says it does not."
+            exit 1
+          fi
+          echo "http://$server:7459 gets no answer, as the guide says."
+
+      - name: "Check that it runs: the doctor command, as the guide writes it"
+        run: |
+          set -euo pipefail
+          docker exec phlix-camera-upload python -m phlix_upload doctor | tee "$RUNNER_TEMP/doctor.txt"
+          grep --quiet --fixed-strings "Nothing needs fixing." "$RUNNER_TEMP/doctor.txt"
+          grep --quiet --fixed-strings "OK       Plex Media Server found: its owner can pair from Phlix without a code." "$RUNNER_TEMP/doctor.txt"
+          echo "- doctor: Nothing needs fixing." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: "Pairing: the pairing code, as the guide writes it"
+        run: |
+          set -euo pipefail
+          code=$(docker exec phlix-camera-upload python -m phlix_upload code)
+          echo "::add-mask::$code"
+          if ! [[ $code =~ ^[A-Z0-9]{4}-[A-Z0-9]{4}$ ]]; then
+            echo "::error::The code command printed something that is not a code like K7QM-3XPD."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$code" > "$RUNNER_TEMP/pairing-code"
+          echo "The code command printed one code (hidden here)."
+
+      # -- Act as the Phlix app ----------------------------------------------
+
+      - name: "The app: find the helper, pair, upload"
+        run: |
+          set -euo pipefail
+          PAIRING_CODE=$(cat "$RUNNER_TEMP/pairing-code") \
+            python3 -I "$RUNNER_TEMP/phone.py" first "$SERVER" "$PHOTOS" "$RUNNER_TEMP/phone-state.json" \
+            | tee "$RUNNER_TEMP/phone-first.txt"
+          echo "- The app, first visit: $(tail -n 1 "$RUNNER_TEMP/phone-first.txt")" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: "Where your photos go: the upload folder on the server"
+        run: |
+          set -euo pipefail
+          find "$PHOTOS" -path "$PHOTOS/.phlix-upload-tmp" -prune -o -printf '%M %U:%G %TY-%Tm-%Td %TH:%TM  %P\n' | sort -k 5
+          docker exec phlix-camera-upload python -m phlix_upload doctor | grep --fixed-strings "2 paired"
+
+      # -- An update and a restart -------------------------------------------
+
+      - name: "Way C: update the helper, then stop and start it"
+        if: matrix.way == 'compose'
+        run: |
+          set -euo pipefail
+          cd ~/phlix-camera-upload
+          docker compose pull
+          docker compose up -d
+          docker compose down
+          docker compose up -d
+
+      - name: "Way A: run the installer again to update, then stop and start it"
+        if: matrix.way == 'installer'
+        run: |
+          set -euo pipefail
+          python3 -I "$RUNNER_TEMP/person.py" "$RUNNER_TEMP/update.txt" \
+            'curl -fsSL https://phlixapp.com/camera-upload/install.sh | sh'
+          grep --quiet --fixed-strings "This run updates it." "$RUNNER_TEMP/update.txt"
+          grep --quiet --fixed-strings "Nothing needs fixing." "$RUNNER_TEMP/update.txt"
+          cd ~/phlix-camera-upload
+          docker compose down
+          docker compose up -d
+
+      # Unraid's update, and Apply after an edit, remove the container and
+      # make it again with the same command.
+      - name: "Unraid: the container is made again, as an update does"
+        if: matrix.way == 'unraid'
+        run: |
+          set -euo pipefail
+          docker rm -f phlix-camera-upload
+          python3 -I "$RUNNER_TEMP/unraid-apply.py" "$RUNNER_TEMP/template.xml" "$PHOTOS"
+
+      - name: The helper answers again
+        run: |
+          set -uo pipefail
+          for attempt in $(seq 1 90); do
+            if [ "$(curl --silent --insecure --max-time 5 https://127.0.0.1:7459/healthz)" = ok ]; then
+              echo "The helper answered after $attempt tries."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::The helper did not answer again in 3 minutes."
+          exit 1
+
+      - name: "The app, later: still paired, nothing twice"
+        run: |
+          set -euo pipefail
+          python3 -I "$RUNNER_TEMP/phone.py" again "$SERVER" "$PHOTOS" "$RUNNER_TEMP/phone-state.json" \
+            | tee "$RUNNER_TEMP/phone-again.txt"
+          echo "- The app, after an update and a restart: $(tail -n 1 "$RUNNER_TEMP/phone-again.txt")" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ matrix.way }}" = unraid ]; then
+            docker logs phlix-camera-upload 2>&1 | grep --fixed-strings "Running as user 99, group 100"
+            [ "$(stat --format '%u:%g' /mnt/user/appdata/phlix-camera-upload)" = 99:100 ]
+          fi
+
+      # The log names the pairing code each time the helper starts. The
+      # container ends with this job, and the code is hidden anyway.
+      - name: The helper's log, with the pairing code hidden
+        if: always()
+        run: |
+          docker logs phlix-camera-upload 2>&1 | sed 's/\(Pairing code: \).*/\1(hidden)/' || true
+          echo "::group::What the Plex stand-in was asked"
+          cat "$RUNNER_TEMP/plex-stand-in.log" || true
+          echo "::endgroup::"
+
+      # -- Remove the helper -------------------------------------------------
+
+      - name: "Remove the helper: the photos stay"
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.way }}" = unraid ]; then
+            docker rm -f phlix-camera-upload
+          else
+            cd ~/phlix-camera-upload
+            docker compose down
+          fi
+          [ -z "$(docker ps --all --quiet --filter name=phlix-camera-upload)" ]
+          test -f "$PHOTOS/Stranger's iPhone/2025/2025-07/IMG_0001.JPG"
+          test -f "$PHOTOS/Stranger's iPhone/2025/2025-07/IMG_0001 (2).JPG"
+          echo "The helper is gone, and both photos are still in $PHOTOS."
+          echo "- Removed: the photos stay." >> "$GITHUB_STEP_SUMMARY"
