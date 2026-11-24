@@ -790,13 +790,15 @@ jobs:
 
           with open("docker-compose.yml", encoding="utf-8") as handle:
               lines = handle.read().split("\n")
-          marks = [number for number, line in enumerate(lines) if "CHANGE THE NEXT LINE" in line]
-          if len(marks) != 1:
-              sys.exit(f"The comment CHANGE THE NEXT LINE is there {len(marks)} times, not once.")
-          below = marks[0] + 1
           placeholder = "/CHANGE/THIS/Photos/Camera Uploads"
-          if placeholder not in lines[below]:
-              sys.exit(f"The line below the comment does not hold {placeholder}: {lines[below]!r}")
+          # The header names the comment too ("the one line marked CHANGE THE
+          # NEXT LINE below"). A person goes on to the one with the
+          # placeholder on the line below it.
+          marks = [number for number, line in enumerate(lines[:-1])
+                   if "CHANGE THE NEXT LINE" in line and placeholder in lines[number + 1]]
+          if len(marks) != 1:
+              sys.exit(f"{len(marks)} comments CHANGE THE NEXT LINE have {placeholder} below them, not one.")
+          below = marks[0] + 1
           lines[below] = lines[below].replace(placeholder, sys.argv[1])
           with open("docker-compose.yml", "w", encoding="utf-8") as handle:
               handle.write("\n".join(lines))
@@ -1034,7 +1036,11 @@ jobs:
           set -euo pipefail
           image=$(docker inspect --format '{{.Config.Image}}' phlix-camera-upload)
           digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")
-          platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}{{with .Variant}}/{{.}}{{end}}' "$image")
+          # Under emulation the image is not this machine's own platform, so
+          # ask for the one Docker was told to use.
+          platform=$(docker image inspect ${DOCKER_DEFAULT_PLATFORM:+--platform "$DOCKER_DEFAULT_PLATFORM"} \
+            --format '{{.Os}}/{{.Architecture}}{{with .Variant}}/{{.}}{{end}}' "$image" 2>/dev/null) ||
+            platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}{{with .Variant}}/{{.}}{{end}}' "$image")
           machine=$(docker exec phlix-camera-upload uname -m)
           version=$(docker exec phlix-camera-upload python -m phlix_upload version)
           echo "Image:    $image"
