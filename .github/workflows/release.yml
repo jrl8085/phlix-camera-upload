@@ -12,6 +12,14 @@
 #                           the same as the Monday run.
 #
 # Everything in ci.yml runs first. Nothing is pushed unless it all passes.
+#
+# Docker Hub. When the repository variable DOCKERHUB_IMAGE is set (for
+# example docker.io/phlixapp/phlix-camera-upload), the job "Copy to Docker
+# Hub" copies every tag pushed above to that name as well: the same image,
+# with the same digest. It signs in with the repository variable
+# DOCKERHUB_USERNAME and the secret DOCKERHUB_TOKEN, a Docker Hub access
+# token with Read & Write scope. Without DOCKERHUB_IMAGE the job is skipped,
+# and a problem on Docker Hub never holds back the image on ghcr.io.
 
 name: Release
 
@@ -57,6 +65,9 @@ jobs:
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
     steps:
       - uses: actions/checkout@v7
 
@@ -138,6 +149,7 @@ jobs:
       # "provenance" records how the image was built, and "sbom" lists what
       # is in it. Both are stored next to the image.
       - name: Build for Intel and Arm, then push
+        id: push
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -152,3 +164,52 @@ jobs:
           annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # The image on ghcr.io, copied to Docker Hub: each tag that publish pushed,
+  # from the digest it pushed, so a push that came later cannot be copied by
+  # mistake. Nothing is built again. Reading from ghcr.io needs no sign-in,
+  # because the image there is public.
+  dockerhub:
+    name: Copy to Docker Hub
+    needs: publish
+    if: vars.DOCKERHUB_IMAGE != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Copy every tag, then compare the digests
+        env:
+          SOURCE: ${{ env.IMAGE }}@${{ needs.publish.outputs.digest }}
+          TAGS: ${{ needs.publish.outputs.tags }}
+          TARGET: ${{ vars.DOCKERHUB_IMAGE }}
+        run: |
+          args=()
+          names=()
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            args+=(--tag "$TARGET:${tag##*:}")
+            names+=("${tag##*:}")
+          done <<<"$TAGS"
+          if [ "${#args[@]}" -eq 0 ]; then
+            echo "::error::The publish job named no tags."
+            exit 1
+          fi
+          echo "Copying $SOURCE to $TARGET as: ${names[*]}"
+          docker buildx imagetools create "${args[@]}" "$SOURCE"
+
+          # The copy must be the same image: the same index digest.
+          for name in "${names[@]}"; do
+            copied=$(docker buildx imagetools inspect "$TARGET:$name" | awk '/^Digest:/ { print $2; exit }')
+            echo "$TARGET:$name is $copied"
+            if [ "$copied" != "${SOURCE##*@}" ]; then
+              echo "::error::$TARGET:$name is $copied, not ${SOURCE##*@} as on ghcr.io."
+              exit 1
+            fi
+          done

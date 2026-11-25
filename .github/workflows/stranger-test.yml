@@ -221,6 +221,29 @@ jobs:
           [ "$status" = 200 ]
           grep --quiet --fixed-strings 'docker pull ghcr.io/jrl8085/phlix-camera-upload' "$RUNNER_TEMP/package.html"
 
+  dockerhub:
+    name: The copy on Docker Hub can be pulled without signing in
+    needs: registry
+    if: vars.DOCKERHUB_IMAGE != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+    steps:
+      - name: Each tag on Docker Hub is the image on ghcr.io
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/docker-config"
+          echo '{}' > "$RUNNER_TEMP/docker-config/config.json"
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          for tag in 1 latest; do
+            hub=$(docker buildx imagetools inspect "$DOCKERHUB_IMAGE:$tag" | awk '/^Digest:/ { print $2; exit }')
+            ghcr=$(docker buildx imagetools inspect "ghcr.io/jrl8085/phlix-camera-upload:$tag" | awk '/^Digest:/ { print $2; exit }')
+            echo "$tag: Docker Hub $hub, ghcr.io $ghcr"
+            [ -n "$hub" ] && [ "$hub" = "$ghcr" ]
+          done
+          docker pull --quiet "$DOCKERHUB_IMAGE:1"
+
   stranger:
     name: ${{ matrix.title }}, ${{ matrix.arch }}
     needs: registry
