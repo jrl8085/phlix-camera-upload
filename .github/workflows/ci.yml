@@ -72,6 +72,13 @@ jobs:
       - name: The documents agree with the program
         run: python3 scripts/check-docs.py
 
+      # The translations in docs/<language>/ against the English documents:
+      # the same code blocks and sections, the language bar and working links.
+      # A warning only: a translation that fell behind never holds up a release.
+      - name: The translations follow the English documents (warning only)
+        continue-on-error: true
+        run: python3 scripts/check-translations.py
+
       # The repository is also a Claude Code plugin. Its two files must be
       # valid JSON, and the plugin must carry the program's version.
       - name: The plugin files are valid JSON with the program's version

@@ -63,6 +63,8 @@ TRADEMARK_LINES = [
 ]
 #: Documents for people. They end with the two trademark lines.
 DOCUMENTS = ["README.md", "SETUP-WITH-AI.md", "NETWORKING.md", "SECURITY.md", SKILL]
+# Translated into the app's languages under docs/<language>/; each starts with a language bar.
+TRANSLATED = ("README.md", "NETWORKING.md", "SECURITY.md")
 #: Every file around the program. The wording rules apply to all of them.
 PACKAGING = DOCUMENTS + [
     "docker-compose.yml", "install.sh", "Dockerfile", "LICENSE", ".dockerignore", ".gitignore",
@@ -445,7 +447,13 @@ def check_wording() -> None:
         text = read(path)
         if re.search(forbidden, text, re.I):
             wrong(f"{path}: it holds the letters '{forbidden}' in a row, which the product's rules forbid")
-        if any(ord(character) > 127 for character in text):
+        checked = text
+        if path in TRANSLATED and text.startswith("**English** \u00b7 "):
+            # The language bar names each language in its own words and script: the one
+            # line of these documents that may go beyond plain ASCII. The translations live in
+            # docs/<language>/ and scripts/check-translations.py checks them against these.
+            checked = text.split("\n", 1)[1]
+        if any(ord(character) > 127 for character in checked):
             wrong(f"{path}: it holds a character that is not plain ASCII")
     for path in DOCUMENTS:
         text = read(path)

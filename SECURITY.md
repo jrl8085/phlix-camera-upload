@@ -1,3 +1,5 @@
+**English** · [Deutsch](docs/de/SECURITY.md) · [Français](docs/fr/SECURITY.md) · [Español](docs/es/SECURITY.md) · [Italiano](docs/it/SECURITY.md) · [Português (Brasil)](docs/pt-BR/SECURITY.md) · [Nederlands](docs/nl/SECURITY.md) · [Svenska](docs/sv/SECURITY.md) · [Dansk](docs/da/SECURITY.md) · [Norsk bokmål](docs/nb/SECURITY.md) · [Suomi](docs/fi/SECURITY.md) · [Polski](docs/pl/SECURITY.md) · [日本語](docs/ja/SECURITY.md) · [한국어](docs/ko/SECURITY.md) · [简体中文](docs/zh-Hans/SECURITY.md) · [繁體中文](docs/zh-Hant/SECURITY.md)
+
 # Security
 
 Phlix Camera Upload is the helper for Camera Upload, a beta feature of the Phlix app. This page is about its security. To set it up, follow the setup guide: https://phlixapp.com/camera-upload/
