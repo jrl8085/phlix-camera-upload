@@ -412,6 +412,14 @@ class UploadTests(unittest.TestCase):
             raw = socket.create_connection(("127.0.0.1", helper.port), timeout=5)
             raw.sendall((f"PUT /api/v1/assets/{key(1)} HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer {token}\r\n"
                          f"X-Phlix-Filename: IMG_1.JPG\r\nContent-Length: 1000000\r\n\r\n").encode() + b"x" * 5000)
+            # Wait until the upload has begun on the server. Looking for an
+            # empty folder before that would pass at once, and a moment later
+            # the server would make the file this test says is not there.
+            for _ in range(200):
+                if os.listdir(helper.app.config.temp_dir):
+                    break
+                threading.Event().wait(0.02)
+            self.assertNotEqual(os.listdir(helper.app.config.temp_dir), [], "the upload never began")
             raw.close()
             for _ in range(200):
                 if not os.listdir(helper.app.config.temp_dir):
