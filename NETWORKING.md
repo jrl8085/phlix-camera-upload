@@ -1,3 +1,5 @@
+**English** · [Deutsch](docs/de/NETWORKING.md) · [Français](docs/fr/NETWORKING.md) · [Español](docs/es/NETWORKING.md) · [Italiano](docs/it/NETWORKING.md) · [Português (Brasil)](docs/pt-BR/NETWORKING.md) · [Nederlands](docs/nl/NETWORKING.md) · [Svenska](docs/sv/NETWORKING.md) · [Dansk](docs/da/NETWORKING.md) · [Norsk bokmål](docs/nb/NETWORKING.md) · [Suomi](docs/fi/NETWORKING.md) · [Polski](docs/pl/NETWORKING.md) · [日本語](docs/ja/NETWORKING.md) · [한국어](docs/ko/NETWORKING.md) · [简体中文](docs/zh-Hans/NETWORKING.md) · [繁體中文](docs/zh-Hant/NETWORKING.md)
+
 # Networking: ways to set it up, and how to fix it when the app cannot find the helper
 
 Most homes need nothing on this page: the helper works as it comes. Read on if Phlix says it cannot find the helper, or if your server's network is set up in a special way.
@@ -164,7 +166,7 @@ Two things differ in this set-up:
 
 ### F. Another port
 
-**When to use it.** Port 7459 is taken on the server.
+**When to use it.** Port 7459 is taken on the server. Docker then says `port is already allocated` or `address already in use` when it starts the helper.
 
 **Changes.** Change only the first number in the `ports:` line:
 
@@ -274,15 +276,46 @@ Allow TCP port 7459 from your home network. The examples are for a home network 
   sudo firewall-cmd --reload
   ```
 
-- **Windows Defender Firewall.** When Windows asks whether Docker Desktop may accept connections, allow it for private networks. To add the rule yourself, run this in PowerShell as an administrator:
+- **Windows Defender Firewall.** Windows 11 makes a network Public when you first connect to it, and a rule for private networks does nothing on a Public network. So first make sure your home network is set to Private. In Windows 11, open Settings > Network & internet, choose Wi-Fi and then the network you are connected to, or choose Ethernet. Under Network profile type, choose Private network. In Windows 10, open Settings > Network & Internet, choose Wi-Fi or Ethernet and then your network, and under Network profile choose Private. Choose Private only for your own home network: it lets the other devices there find the PC. To see the type of each network, run `Get-NetConnectionProfile` in PowerShell and read `NetworkCategory`.
+
+  Then allow Docker Desktop on private networks only. Docker Desktop takes the connections for every published port in one program, `com.docker.backend.exe`, which Windows calls Docker Desktop Backend. Windows usually asks about it the first time the helper starts. Make sure that only the box for Private networks is ticked, and choose Allow access. If Windows does not ask, add a rule yourself: run this in PowerShell as an administrator. It lets in only devices on the PC's own subnet, and only while the network is Private:
 
   ```powershell
-  New-NetFirewallRule -DisplayName "Phlix Camera Upload" -Direction Inbound -Protocol TCP -LocalPort 7459 -Action Allow -Profile Private
+  New-NetFirewallRule -DisplayName "Phlix Camera Upload" -Direction Inbound -Protocol TCP -LocalPort 7459 -RemoteAddress LocalSubnet -Action Allow -Profile Private
   ```
+
+  If your phones are on another subnet, such as a VLAN of their own, write that subnet in place of `LocalSubnet`, for example `192.168.20.0/24`.
+
+  Windows keeps its first answer about Docker Desktop Backend. After Cancel, or after the window was closed, it blocks the program from then on, and a block rule wins over every allow rule, the one above too. After an answer for public networks only, the phone usually cannot reach the helper on your Private network. To be asked again, run this in PowerShell as an administrator:
+
+  ```powershell
+  Remove-NetFirewallRule -DisplayName "Docker Desktop Backend"
+  ```
+
+  Then quit Docker Desktop, start it again, and answer as above. Older versions of Docker Desktop named the rule `com.docker.backend.exe`. If the phone still cannot reach the helper, run the command once more with that name in place of `Docker Desktop Backend`.
 
 - **macOS.** If the firewall is on, allow incoming connections for Docker under System Settings > Network > Firewall > Options.
 - **Synology.** If the firewall is on, add a rule under Control Panel > Security > Firewall > Edit Rules: ports Custom, TCP 7459, action Allow.
+- **QNAP.** If QuFirewall is on, open QuFirewall > Firewall Profiles and edit the profile in use. Choose Add Rule. Set Permission to Allow and Source to IP, with your home network (`192.168.1.0/24`). Set Protocol to TCP and Port to 7459, and choose Apply. Put the rule above any rule that denies all, then choose Apply again and Yes.
 - **Unraid.** Unraid has no firewall of its own. There is nothing to open.
+
+The firewall can also keep the helper away from Plex on the same machine. The status page then says `Plex Media Server: Not found`. The helper asks Plex from its own Docker network, not from your home network. So a rule for your home network does not let it in, and `PLEX_URL` does not change that. Choose one of these:
+
+- Pair with the pairing code. It works just as well, and the firewall stays as it is.
+- Use host networking: [way B](#b-host-networking-on-linux). The helper then asks Plex at `127.0.0.1`, on the server itself, and firewalls usually let that through. With way B, the firewall also decides who may reach port 7459: allow it from your home network, as above.
+- Let the helper's Docker network reach port 32400, and nothing else. This command shows the network's range, such as `172.18.0.0/16`:
+
+  ```sh
+  docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}' phlix-camera-upload_default
+  ```
+
+  The network is named after the helper's folder. If Docker says that there is no such network, write your folder's name in place of `phlix-camera-upload`. If you started the helper with `docker run`, the network is `bridge`. Then allow that range to TCP port 32400. With ufw, put the range in place of `RANGE`:
+
+  ```sh
+  sudo ufw allow from RANGE to any port 32400 proto tcp
+  ```
+
+  On Synology, add a rule under Control Panel > Security > Firewall > Edit Rules: ports Custom, TCP 32400, source IP Specific IP with that range, action Allow. Drag it above any rule that denies. After `docker compose down`, Docker may give the helper another range when it starts again. Check the range again then.
 
 ### Guest Wi-Fi and client isolation
 
@@ -324,7 +357,7 @@ Run `docker exec phlix-camera-upload python -m phlix_upload doctor` first. It fi
 | Phlix shows Connected at home and uploads nothing away from home. | Phlix uploads only on your home network. | Nothing. Uploads go on when the phone is home again. |
 | Phlix says "Paused: not on your home network", and the phone is on your home Wi-Fi. | Phlix knows your home network by its address range, such as `192.168.1.0/24`, not by the name of the Wi-Fi. A second Wi-Fi at home or a new router can use another range. | Open the Camera Upload screen and choose This Is My Home Network. If Phlix answers "The helper didn't answer", the helper did not answer at the address that the phone has for it. With a new router, the server usually has a new address: choose Disconnect and connect again, as in [The server's address changes](#the-servers-address-changes). The phone keeps its folder, and nothing is uploaded twice. Phlix asks again what to back up. Without a new router, do not disconnect. A guest Wi-Fi cannot reach the server: join the Wi-Fi that the server is on. |
 | Phlix uploads on one Wi-Fi at home and not on another. | The second network is not marked as home. | Connect to it, open the Camera Upload screen and choose This Is My Home Network. |
-| The status page says `Plex Media Server: Not found`. | The helper cannot reach Plex on port 32400. | Set `PLEX_URL`, or use way B, C, D or E. Phones can pair with the pairing code until then. |
+| The status page says `Plex Media Server: Not found`. | The helper cannot reach Plex on port 32400. | Set `PLEX_URL`, or use way B, C, D or E. If a firewall on the server keeps the helper away from Plex, see [Firewalls on the server](#firewalls-on-the-server). Phones can pair with the pairing code until then. |
 | The owner of the Plex server is asked for a pairing code. | The helper has not found Plex, or Plex lets the helper in without signing in. | Read the status page. Pair with the code, or fix what the page says. |
 | Small photos upload and large videos fail, behind a reverse proxy. | The proxy limits the size or the time of an upload. | See way G. |
 | Every phone has to wait after one phone typed a wrong code, behind a reverse proxy. | The helper sees every phone as the proxy. | Wait a minute. |

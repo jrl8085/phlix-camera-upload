@@ -1,3 +1,5 @@
+**English** · [Deutsch](docs/de/README.md) · [Français](docs/fr/README.md) · [Español](docs/es/README.md) · [Italiano](docs/it/README.md) · [Português (Brasil)](docs/pt-BR/README.md) · [Nederlands](docs/nl/README.md) · [Svenska](docs/sv/README.md) · [Dansk](docs/da/README.md) · [Norsk bokmål](docs/nb/README.md) · [Suomi](docs/fi/README.md) · [Polski](docs/pl/README.md) · [日本語](docs/ja/README.md) · [한국어](docs/ko/README.md) · [简体中文](docs/zh-Hans/README.md) · [繁體中文](docs/zh-Hant/README.md)
+
 # Phlix Camera Upload
 
 **Beta.** This is the server half of Camera Upload, a beta feature of the [Phlix](https://phlixapp.com) app for iPhone and iPad. The other half is in Phlix 1.0.21 or later, under Settings > Camera Upload. If the App Store does not offer that version yet, it is on its way.
@@ -41,11 +43,13 @@ Camera Upload is a beta, and the app marks it Beta. Keep your own backup of anyt
 ## What you need
 
 - A computer or NAS that runs Plex Media Server and Docker. Docker must be version 20.10 or later, with Docker Compose version 2 (the `docker compose` command).
+  - On Ubuntu, if you installed Docker with `sudo apt install docker.io`, add Compose with `sudo apt install docker-compose-v2`. Ubuntu 22.04 and later have that package.
+  - Docker from a Snap cannot start the helper. Ubuntu Server offers that Snap while it installs. To check, run `snap list docker`. If it lists docker, see [Docker Compose says "bind source path does not exist"](#docker-compose-says-bind-source-path-does-not-exist).
 - A photo library in Plex.
 - Phlix 1.0.21 or later on an iPhone or iPad. To check, open Settings in Phlix: from 1.0.21 it has a Camera Upload row, marked Beta. If the App Store does not offer that version yet, it is on its way.
 - The phone and the server on the same home network.
 
-The image runs on 64-bit Intel and AMD, on 64-bit Arm, and on 32-bit Arm (ARMv7).
+The image runs on 64-bit Intel and AMD, on 64-bit Arm, and on 32-bit Arm (ARMv7). It holds one variant for each, and Docker picks the one for your machine by itself. [The image's page on GitHub](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) also lists `unknown/unknown`. That is not a variant: it is the record of how the image was built and what is in it.
 
 ## Install
 
@@ -63,13 +67,15 @@ curl -fsSL https://raw.githubusercontent.com/jrl8085/phlix-camera-upload/main/in
 
 The installer asks for the upload folder and makes it if it is missing. It writes `docker-compose.yml` into `phlix-camera-upload` in your home folder, starts the helper, checks it, and tells you what to do next. Run it again to update.
 
-It works on Linux and on a Mac with Docker Desktop. On Unraid and TrueNAS SCALE, follow [Other platforms](#other-platforms) instead.
+It works on Linux and on a Mac with Docker Desktop. On Unraid, TrueNAS SCALE and QNAP, follow [Other platforms](#other-platforms) instead.
 
 To answer the question ahead of time:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/jrl8085/phlix-camera-upload/main/install.sh | sh -s -- --photos "/mnt/media/Photos/Camera Uploads" --yes
 ```
+
+With `--photos` and `--yes`, the installer asks nothing, and it makes the upload folder if it is missing. To update later, leave both out: the installer then keeps your `docker-compose.yml` as it is. With them, it can write a new `docker-compose.yml` that keeps only your upload folder, port, `PLEX_URL`, `PUID` and `PGID`. The old file stays next to the new one.
 
 Add `--dry-run` to see what it would do, or `--help` to see every option. The installer never uses `sudo`. If Docker needs it on your server, the installer says so and stops.
 
@@ -107,12 +113,19 @@ curl -fsSLO https://raw.githubusercontent.com/jrl8085/phlix-camera-upload/main/S
 
 ### 3. By hand with Docker Compose
 
-These steps are for Linux. For Unraid, Synology, TrueNAS SCALE and Docker Desktop, read [Other platforms](#other-platforms) first.
+These steps are for Linux. For Unraid, Synology, TrueNAS SCALE, QNAP and Docker Desktop, read [Other platforms](#other-platforms) first.
 
 1. Make your upload folder, as the user who owns your photos. The helper writes files as the owner of this folder.
 
    ```sh
    mkdir "/mnt/media/Photos/Camera Uploads"
+   ```
+
+   If `mkdir` says `Permission denied`, your user may not write to your library's folder, for example because it belongs to root, or to plex, the user that runs Plex Media Server. Make the folder with `sudo`, and give it the owner of the folder above it. Put your own paths in place of the examples:
+
+   ```sh
+   sudo mkdir "/mnt/media/Photos/Camera Uploads"
+   sudo chown --reference="/mnt/media/Photos" "/mnt/media/Photos/Camera Uploads"
    ```
 
 2. Make a folder for the helper.
@@ -133,7 +146,7 @@ These steps are for Linux. For Unraid, Synology, TrueNAS SCALE and Docker Deskto
    curl -fsSLO https://raw.githubusercontent.com/jrl8085/phlix-camera-upload/main/docker-compose.yml
    ```
 
-5. Open `docker-compose.yml` in a text editor and change one line. Find the comment `CHANGE THE NEXT LINE`. On the line below it, replace `/CHANGE/THIS/Photos/Camera Uploads` with your upload folder. Save the file.
+5. Open `docker-compose.yml` in a text editor and change one line. Find the line `source: /CHANGE/THIS/Photos/Camera Uploads`. It is just below the comment `CHANGE THE NEXT LINE`. Replace `/CHANGE/THIS/Photos/Camera Uploads` with your upload folder. Save the file.
 
 6. Start the helper. The first time, Docker downloads the image.
 
@@ -217,7 +230,7 @@ If Plex runs in a container, compare with the Plex container's own paths: the up
 
 ### Synology (Container Manager)
 
-Container Manager needs DSM 7.2 or later.
+Container Manager needs DSM 7.2 or later, and Synology offers it only on some models. Synology lists them under Applied Models on its Container Manager page: https://www.synology.com/en-global/dsm/packages/ContainerManager. If your model is not there, these steps do not work on your NAS. Run the helper on another computer at home instead: read "The helper on another machine than Plex" in [NETWORKING.md](NETWORKING.md).
 
 1. In File Station, make your upload folder inside the shared folder that your Plex photo library uses.
 2. In File Station, make a folder for the helper, for example `docker/phlix-camera-upload`.
@@ -231,7 +244,9 @@ If the DSM firewall is on, allow TCP port 7459 under Control Panel > Security > 
 
 If the status page says the helper cannot write to the upload folder, open Control Panel > Shared Folder > Edit > Permissions. Give Read/Write permission to the user who owns the upload folder.
 
-To run an admin command, connect over SSH and put `sudo` in front of it.
+To run an admin command, switch on SSH first: in Control Panel > Terminal & SNMP > Terminal, tick Enable SSH service and choose Apply. Then sign in with `ssh NAME@SERVER`, as a DSM user in the administrators group, and put `sudo` in front of the command. Switch SSH off again when you no longer need it.
+
+The pairing code is also in the helper's log, and you can read it without SSH. In Container Manager, open Container, select `phlix-camera-upload`, choose Action > Details, and open the Log tab. Look for the line `Pairing code:`.
 
 ### TrueNAS SCALE
 
@@ -245,6 +260,26 @@ These steps need TrueNAS SCALE 24.10 or later. Do not use the one-command instal
 6. Choose Save.
 
 To run an admin command, open System > Shell and put `sudo` in front of it.
+
+### QNAP (Container Station)
+
+These steps need Container Station 3, on QTS 5.1 or QuTS hero h5.1 or later. Do not use the one-command installer here: let Container Station manage the helper.
+
+1. In App Center, install Container Station and open it.
+2. In File Station, make your upload folder inside the shared folder that your Plex photo library uses. Its full path starts with `/share/` and the name of the shared folder, for example `/share/Multimedia/Photos/Camera Uploads`. If Plex shows your library's folder as `/share/CACHEDEV1_DATA/Multimedia/Photos` or similar, that is the same folder, and that path works too.
+3. In File Station, also make a folder for the helper's own data, for example `phlix-camera-upload` in the shared folder named Container. Its full path is then `/share/Container/phlix-camera-upload`.
+4. In Container Station, click the arrow next to Explore, at the top, and choose Create Application. Or go to Applications and choose Create.
+5. Enter the name `phlix-camera-upload`, and paste the contents of [docker-compose.yml](docker-compose.yml).
+6. Change the one line to your upload folder's full path. Change `./config:/config` to the folder from step 3, for example `/share/Container/phlix-camera-upload:/config`. Both paths start with `/share/`.
+7. Choose Validate, then Create. Container Station downloads the image and starts the helper.
+
+The helper writes files as the owner of the upload folder. On QNAP, the account named admin is the superuser, root. If you made the upload folder as admin, the files belong to admin. The log then says `Running as root`, and `doctor` has a NOTE that says `The helper runs as root`. That is fine: Plex can still read the files. To have them belong to another user, make the upload folder while you are signed in to QTS as that user. The folder then usually belongs to that user, and so do the photos.
+
+To run an admin command, open Containers in Container Station, select `phlix-camera-upload` and choose Execute. Add the command without `docker exec phlix-camera-upload` in front, for example `python -m phlix_upload doctor`, and run it. The pairing code is also on the container's Logs tab: look for the line `Pairing code:`.
+
+Where this README says to change `docker-compose.yml` and run `docker compose up -d`, open Applications in Container Station instead. Select `phlix-camera-upload`, click the arrow next to Edit and choose Recreate. Change the text there and choose Update.
+
+If QuFirewall is on and the app cannot find the helper, allow TCP port 7459 from your home network: read "Firewalls on the server" in [NETWORKING.md](NETWORKING.md).
 
 ### Plain Linux
 
@@ -260,7 +295,9 @@ Nothing differs. Two notes:
 - Write the upload folder as a Mac or Windows path: `/Users/you/Pictures/Camera Uploads` or `C:\Users\you\Pictures\Camera Uploads`.
 - If Docker says the folder is not shared, add it in Docker Desktop under Settings > Resources > File sharing.
 - Uploads work only while Docker Desktop runs and the computer is awake. In Docker Desktop, switch on Settings > General > Start Docker Desktop when you sign in.
-- If Windows or macOS asks whether Docker may accept connections from your network, allow it.
+- On Windows, make sure your home network is set to Private before you start the helper. Windows 11 makes a network Public when you first connect to it, and the answer below lets the phone in on a Private network only. In Windows 11, open Settings > Network & internet, choose Wi-Fi and then the network you are connected to, or choose Ethernet. Under Network profile type, choose Private network. Choose Private only for your own home network: it lets the other devices there find the PC.
+- When Windows asks about Docker Desktop Backend, make sure that only the box for Private networks is ticked, and choose Allow access. For Windows 10, for a rule of your own, and if you chose Cancel, see [Firewalls on the server](NETWORKING.md#firewalls-on-the-server).
+- On a Mac, if macOS asks whether Docker may accept connections from your network, allow it.
 - The helper's log may say `Running as root`, and `doctor` then has a NOTE that says `The helper runs as root`. On Docker Desktop you can ignore both: Docker Desktop writes the files as your own user.
 - Docker Desktop shows every phone to the helper as one address. The limits that the helper keeps for one address are then shared by all phones: 24 connections at once, and five wrong pairing tries a minute.
 - On Windows, type the commands in PowerShell, and use `curl.exe` where this page says `curl`.
@@ -492,7 +529,8 @@ Phones can still pair with the pairing code. Only pairing without a code needs P
 | --- | --- |
 | The helper started a moment ago, or Plex was not running yet. | Wait a minute. Then reload the page, and reload it once more a few seconds later. The helper looks for Plex again when someone opens the page, and shows the answer the next time. |
 | The container was started without the `host.docker.internal` line. | Use the Compose file as it is. With `docker run`, add `--add-host=host.docker.internal:host-gateway`. |
-| Plex uses another port, runs on another machine, or a firewall on the server keeps the container away from Plex. | Set `PLEX_URL` to the address of Plex, for example `http://192.168.1.10:32400`. |
+| Plex uses another port, or runs on another machine. | Set `PLEX_URL` to the address of Plex, for example `http://192.168.1.10:32400`. |
+| A firewall on the server keeps the helper away from Plex on the same machine. The helper asks Plex from its own Docker network, not from your home network. So a rule for your home network does not let it in, and `PLEX_URL` does not change that. | Pair with the pairing code. Or let the helper reach Plex: [Firewalls on the server](NETWORKING.md#firewalls-on-the-server) shows two ways. |
 
 ### The status page says Plex "lets this helper in without signing in"
 
@@ -541,6 +579,13 @@ First find out whether the files arrive. The status page shows `Files stored`, a
 | Cause | Fix |
 | --- | --- |
 | The upload folder in `docker-compose.yml` does not exist, or the line still says `/CHANGE/THIS`. | Make the folder, check the spelling of the path, and run `docker compose up -d` again. |
+| The folder is there, and Docker came as a Snap, which Ubuntu Server offers while it installs. Docker from a Snap sees only some folders. It also cannot start a container with the helper's setting `no-new-privileges`: Docker or the log then says `operation not permitted`. | Run `snap list docker`. If it lists docker, replace it. First remove the Snap with `sudo snap remove docker`. That deletes everything this Docker holds: its containers, images and volumes. Your upload folder and the helper's folder stay. If other programs run in this Docker, such as Plex, make sure that you can set them up again before you remove it. Then install Docker with [Docker's own instructions](https://docs.docker.com/engine/install/), and run `docker compose up -d` again. |
+
+### Docker says "port is already allocated" or "address already in use"
+
+| Cause | Fix |
+| --- | --- |
+| Docker cannot use port 7459 on the server. Usually another program or another container uses it. On a Mac or Windows PC, Docker Desktop says `Ports are not available`. | Give the helper another port. In `docker-compose.yml`, change only the first number in the `ports:` line, for example to `"7460:7459"`, and run `docker compose up -d` again. With the one-command installer, run it again with `--port 7460`, and answer `y` when it asks whether to replace the Compose file. Then give each phone the helper's address with the new port: see [The port](#the-port). |
 
 ### The container stops at once, or keeps restarting, and the log says "Nothing is mounted at /photos"
 
