@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from phlix_upload import __main__ as main_module
 from phlix_upload import config as config_module
@@ -353,6 +354,25 @@ class WhoTheHelperRunsAsTests(unittest.TestCase):
         self.assertFalse(main_module._helper_runs_as_root("/nonexistent"))
 
 
+class DroppingRootTests(unittest.TestCase):
+    def test_a_temporary_folder_made_by_root_becomes_the_helpers_own(self):
+        # The fix for an emptied upload folder: a person makes .phlix-upload-tmp, usually as root.
+        root = tempfile.mkdtemp(prefix="phlix-root-")
+        self.addCleanup(shutil.rmtree, root, True)
+        config = config_module.load({"UPLOAD_DIR": os.path.join(root, "photos"),
+                                     "CONFIG_DIR": os.path.join(root, "config"), "PUID": "1000", "PGID": "100"})
+        os.makedirs(config.temp_dir)
+        owners = []
+        with mock.patch.object(os, "geteuid", return_value=0), \
+                mock.patch.object(os, "chown", lambda path, uid, gid, **_: owners.append((path, uid, gid))), \
+                mock.patch.object(os, "setgroups", create=True), mock.patch.object(os, "setgid"), \
+                mock.patch.object(os, "setuid"):
+            main_module.drop_privileges(config)
+        self.assertIn((config.temp_dir, 1000, 100), owners)
+        # Nothing else in the upload folder is touched.
+        self.assertEqual([path for path, _, _ in owners if path.startswith(config.upload_dir)], [config.temp_dir])
+
+
 class StoreTests(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="phlix-store-")
@@ -425,6 +445,53 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(self.store.known_keys("device-0002", keys), set())
         self.assertEqual(self.store.known_keys("device-0001", []), set())
         self.assertEqual(self.store.device_totals("device-0001"), (650, 650))
+
+    def test_a_folder_another_phone_had_stays_its_own(self):
+        self.store.pair_device("device-0001", "iPhone", "Family", "code")
+        moved, _ = self.store.pair_device("device-0001", "iPhone", "Jason", "code", switch_folder=True)
+        other, _ = self.store.pair_device("device-0002", "iPhone", "family", "code")
+        back, _ = self.store.pair_device("device-0001", "iPhone", "FAMILY", "code", switch_folder=True)
+        self.assertEqual((moved.folder, other.folder, back.folder), ("Jason", "family 2", "Family"))
+        self.assertEqual(sorted(self.store.all_folders()),
+                         [("device-0001", "Family"), ("device-0001", "Jason"), ("device-0002", "family 2")])
+
+    def test_the_writes_of_a_check_never_undo_a_newer_record(self):
+        self.store.record_asset("device-0001", "k" * 32, "a" * 64, "iPhone/x.jpg", 10, "photo", None)
+        seen = self.store.asset("device-0001", "k" * 32)
+        # The photo was sent again while a check looked: same path, one more return.
+        self.store.record_asset("device-0001", "k" * 32, "a" * 64, "iPhone/x.jpg", 10, "photo", None, returned=True)
+        self.assertFalse(self.store.flag_missing(seen, 1))
+        self.assertIsNone(self.store.asset("device-0001", "k" * 32).missing_at)
+        now = self.store.asset("device-0001", "k" * 32)
+        self.assertTrue(self.store.flag_missing(now, 1))
+        self.assertTrue(self.store.flag_missing(now, 2))
+        self.assertEqual(self.store.asset("device-0001", "k" * 32).missing_at, 1)
+        self.assertEqual(self.store.device_totals("device-0001"), (0, 0))
+        self.assertIsNone(self.store.sha_at_path("iPhone/x.jpg"))
+        self.assertEqual(self.store.present_count(), 0)
+        self.assertEqual(self.store.totals(), (0, 0))
+        # Found moved; a second finding from an older look changes nothing.
+        self.assertTrue(self.store.repoint(now, "Sorted/x.jpg"))
+        self.assertFalse(self.store.repoint(now, "Elsewhere/x.jpg"))
+        self.assertEqual(self.store.asset("device-0001", "k" * 32).relpath, "Sorted/x.jpg")
+        self.assertEqual(self.store.device_totals("device-0001"), (1, 10))
+        self.assertEqual(self.store.totals(), (1, 10))
+        # A twin is noted only for a photo the device has no record of.
+        twin = self.store.asset("device-0001", "k" * 32)
+        self.assertFalse(self.store.record_twin("device-0001", "k" * 32, "b" * 64, twin))
+        self.assertTrue(self.store.record_twin("device-0002", "j" * 32, "a" * 64, twin))
+        self.assertEqual(self.store.asset("device-0002", "j" * 32).relpath, "Sorted/x.jpg")
+
+    def test_a_renamed_folder_moves_every_record_under_it_and_no_other(self):
+        paths = ["50%/2026/x.jpg", "50% off/2026/x.jpg", "a_b/x.jpg", "aXb/x.jpg", "a_b 2/x.jpg", "a_bc/x.jpg"]
+        for number, path in enumerate(paths):
+            self.store.record_asset(f"device-000{number % 2}", f"{number:032d}", "a" * 64, path, 1, "photo", None)
+        self.assertEqual(self.store.relocate("device-0000", "50%", "Fifty", "Fifty"), 1)
+        self.assertEqual(self.store.relocate("device-0000", "a_b", "Renamed", "Renamed"), 1)
+        after = sorted(self.store.asset(f"device-000{number % 2}", f"{number:032d}").relpath
+                       for number in range(len(paths)))
+        self.assertEqual(after, sorted(["Fifty/2026/x.jpg", "50% off/2026/x.jpg", "Renamed/x.jpg", "aXb/x.jpg",
+                                        "a_b 2/x.jpg", "a_bc/x.jpg"]))
 
     def test_content_can_be_found_by_hash_and_by_path(self):
         self.store.record_asset("device-0001", "k" * 32, "a" * 64, "iPhone/x.jpg", 10, "photo", None)

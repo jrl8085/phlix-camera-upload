@@ -23,7 +23,7 @@ Camera Upload is a beta, and the app marks it Beta. Keep your own backup of anyt
 - Phlix can send a notification when everything is backed up: switch on Notify Me When Backed Up.
 - You choose what is backed up. Include Videos is on at first. Include Screenshots is off at first. Back Up is set to Everything on this device or to Only new photos.
 - With Phlix open, new photos upload by themselves. With Phlix closed, iOS lets it carry on in short bursts, mostly while the device charges.
-- Each photo is uploaded once, as it looks in Photos at that moment. An edited photo uploads edited. A Live Photo uploads as its still photo.
+- Each photo is uploaded as it looks in Photos at that moment. An edited photo uploads edited. A Live Photo uploads as its still photo.
 - On the server, each device has its own folder, with a folder for each year and each month. A file keeps its name and its date. The same photo from two devices is stored once. Nothing is ever overwritten.
 - When your Plex account owns the server, Phlix asks Plex to scan once your photos have arrived, so that they show up in Plex.
 - It never deletes or changes anything on the device. It is a one-way copy.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **The device's folder** gets its name when the device pairs. If two devices ask for the same name, the second gets a number, such as `iPhone 2`. A device that pairs again keeps its folder.
+- **The device's folder** gets its name when the device pairs. If two devices ask for the same name, the second gets a number, such as `iPhone 2`. A device that pairs again keeps its folder, unless you type another name in Phlix: then its new photos go into a folder of that name.
 - **The year and month** come from the photo's own date, in the phone's local time. A photo without a date is filed under the date of the upload.
 - **The file** keeps the name it had on the phone. The helper also sets the file's modification time to the photo's date.
 - **Two different photos with the same name** are both kept. The second one gets a number: `IMG_1234 (2).HEIC`.
 - **The same photo from two phones** is stored once. The helper compares the contents of the files, not their names. The photo stays in the folder of the phone that sent it first.
-- **Files you move or delete** on the server are not asked for again. The helper keeps its own list of what each phone has sent.
+- **A photo counts as backed up** only while its file is in the upload folder. If you delete a file, or a device's whole folder, and the photo is still on the device, Phlix uploads it again. It checks when you open the Camera Upload screen, and from time to time while it backs up at home.
+- **Sort files into any folders** inside the upload folder, keeping their names: Phlix finds them there. A device's folder you rename is followed, and new photos go into it. A file you rename, or move out of the upload folder, is uploaded again. A file you edit still counts. Nothing is ever overwritten.
+- **If a file keeps leaving the upload folder soon after each upload**, for example because a program on the server moves new files away, Phlix sends it again three times at most, then lists it under Can't Be Backed Up. When you connect the phone again, or delete its whole folder, Phlix sends those photos again too. To keep a photo off the server, hide it in the Photos app: Phlix never uploads hidden photos.
 
 The helper accepts these file types and refuses everything else:
 
@@ -361,7 +363,7 @@ The helper works without any settings. To change one, open `docker-compose.yml`,
 | `PAIRING` | `auto` | Who may pair. `auto`: the owner of the Plex server pairs without a code, and everyone else types the pairing code. `code`: everyone types the code. `plex`: only the owner of the Plex server may pair. |
 | `PAIRING_CODE` | empty | Your own pairing code, with at least 6 letters or digits. When this is empty, the helper makes a code on first start and keeps it. |
 | `NAME` | `Phlix Camera Upload` | The name that the app and the status page show for this helper. At most 60 characters. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | The folders that the helper makes inside the upload folder. You can use `{device}`, `{year}`, `{month}` and `{day}`. No folder may start with a dot. With a lone `/`, every file goes straight into the upload folder. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | The folders that the helper makes inside the upload folder. You can use `{device}`, `{year}`, `{month}` and `{day}`. No folder may start with a dot. With a lone `/`, every file goes straight into the upload folder. A device's folder that you rename is followed only when `{device}` is a folder of its own with no date before it, as in the default. |
 | `MIN_FREE_GB` | `2` | The helper refuses an upload that would leave less than this many GB free on the disk. It counts the uploads that are still arriving, so several uploads at once cannot take the disk below this. From 0 to 1000000. |
 | `MAX_UPLOAD_GB` | `50` | The largest single file that the helper accepts, in GB. From 0.001 to 1000000. |
 | `EXTRA_EXTENSIONS` | empty | More file types to accept, separated by commas, such as `insp,lrv`. Each is 1 to 10 letters or digits. |
@@ -390,11 +392,11 @@ The image also sets `PHLIX_CONTAINER=1`. With it, the helper refuses to start un
 3. In `docker-compose.yml`, change the line that starts with `source:` to the new folder.
 4. Run `docker compose up -d`.
 
-Photos that were uploaded before stay where they are, and phones do not send them again. If you want them in the new folder, move them between step 2 and step 3: move everything that is inside the old upload folder into the new one, and keep the folders inside as they are.
+Between step 2 and step 3, move everything that is inside the old upload folder into the new one, and keep the folders inside as they are. Phones send again every photo that is not in the new folder. Move the hidden folder `.phlix-upload-tmp` too. To start with an empty folder, make a folder named `.phlix-upload-tmp` in it: phones then send again every photo still on them.
 
 ### The name of a phone's folder
 
-Leave it as it is. The helper keeps putting a phone's new photos into the folder that the phone got when it paired. If you rename that folder on the server, the helper makes the old name again for the next photo. Pairing the phone again does not change the folder either.
+To rename a phone's folder, rename it on the server. The helper finds the folder under its new name and puts the phone's new photos there. Or, in Phlix, choose Disconnect, connect again and type the new name: new photos then go into a folder of that name, and the photos already on the server stay where they are.
 
 ### The port
 
@@ -402,7 +404,7 @@ Leave it as it is. The helper keeps putting a phone's new photos into the folder
 2. Run `docker compose up -d`.
 3. Give each phone the helper's address with the new port, for example `https://192.168.1.10:8443`. Phlix looks for port 7459 by itself.
    - A phone that has not paired yet: in Phlix, open Settings > Camera Upload and tap Check for the Helper, then Enter the Helper's Address. Type the address and tap Check This Address. Then go on as in [Connect your iPhone](#connect-your-iphone), from step 4.
-   - A phone that is already paired keeps the old address, and its Camera Upload screen has no field for a new one. On that screen, choose Disconnect first. Then do what the line above says. Anyone who is not the owner of the Plex server types the pairing code again. The phone keeps its folder, and nothing is uploaded twice. Phlix asks again what to back up, with the choices you made before already set.
+   - A phone that is already paired keeps the old address, and its Camera Upload screen has no field for a new one. On that screen, choose Disconnect first. Then do what the line above says. Anyone who is not the owner of the Plex server types the pairing code again. Leave the folder name as Phlix shows it: the phone keeps its folder, and nothing is uploaded twice. Phlix asks again what to back up, with the choices you made before already set.
 
 ### Another machine
 
@@ -489,7 +491,7 @@ docker exec phlix-camera-upload python -m phlix_upload doctor
 A healthy helper answers like this:
 
 ```
-Phlix Camera Upload 1.0.1
+Phlix Camera Upload 1.0.2
 OK       The helper is running on port 7459
 OK       The upload folder /photos can be written to.
 OK       224.5 GB free on the upload disk.
@@ -593,6 +595,12 @@ First find out whether the files arrive. The status page shows `Files stored`, a
 | --- | --- |
 | The container was started without a folder at `/photos`, at `/config`, or both. The helper then refuses to start: uploads would land inside the container and be lost at the next update. | Start the helper with both folders, as in the Compose file or the `docker run` command above. |
 | Both folders are mounted and the message still appears. This is rare. It can happen when Docker keeps its own data on the same disk as your folders and does not use a separate file system for containers. | In `docker-compose.yml`, add the line `ALLOW_UNMOUNTED: "1"` under `environment:`, and run `docker compose up -d`. Then upload one photo and check that the file is in your upload folder on the server. |
+
+### The helper does not start; its log says the upload folder is empty
+
+| Cause | Fix |
+| --- | --- |
+| The helper stored photos in the upload folder before, and now the folder is empty. Usually the share or disk that holds it is not mounted yet. The helper then waits for it: Docker keeps starting it again, and it starts by itself once the folder is back. | Check that the share or disk is mounted. If you emptied the folder on purpose, make a folder named `.phlix-upload-tmp` in it, for example `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. The helper then starts, and phones send again every photo that is still on them. On Unraid, start the container again on the Docker tab. |
 
 ### Pairing says there were too many tries
 

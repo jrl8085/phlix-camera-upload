@@ -61,6 +61,7 @@ The helper is made for a home network. It should not be reachable from the inter
 - A file is made under a name that is free. Nothing that is already there is overwritten.
 - The helper checks the SHA-256 that the phone sends with each upload, and throws a damaged upload away.
 - An upload has a size limit. The helper keeps a part of the disk free, and counts the uploads that are still arriving, so several uploads at once cannot fill the disk.
+- To tell a phone which of its photos are still there, the helper reads the names in the upload folder, and the size, date or content of a file that may be one of them, moved. It answers with the phone's own photo ids only, never with a file or a list of files.
 
 **Connections.**
 
@@ -78,7 +79,7 @@ The helper is made for a home network. It should not be reachable from the inter
 
 These are choices, not faults. Report anything that goes beyond them.
 
-1. **The phones of one helper are one household.** Identical files are stored once. So a paired phone can learn that another phone already uploaded a file, and how large that file is. For that it must hold the same file, or know its SHA-256. It cannot learn where the file is kept, and it cannot read it.
+1. **The phones of one helper are one household.** Identical files are stored once. So a paired phone can learn that another phone already uploaded a file, and how large that file is. For that it must hold the same file, or know its SHA-256. A phone can also learn it by name, size and date: when a file it sent has gone from where the helper put it, the helper looks for a file with the same name, size and date anywhere in the upload folder, the folders of the other phones included. Either way it cannot learn where the file is kept, and it cannot read it.
 2. **Anyone on the network can open the status page.** It shows the helper's version, the size of the disk and its free space, whether Plex was found and its version, how many devices are paired, and how many files are stored and their total size. The address that the app asks first, `/api/v1/hello`, also gives the helper's name and the identifier of the Plex server. None of them shows a device name, a file name, a token or the pairing code.
 3. **The pairing code is a household secret.** A device's id is a random value that only the device and the helper know. Whoever has the pairing code and that id can pair as that device. Change the code with the `new-code` command when someone leaves the household.
 4. **Without `PLEX_URL`, the helper trusts what answers as Plex.** It looks at the Docker host, the container's gateway, `127.0.0.1` and a container named `plex`, and takes the first one that answers like Plex. Set `PLEX_URL` to pin it to your server.

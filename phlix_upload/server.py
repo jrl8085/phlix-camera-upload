@@ -3,7 +3,7 @@
     GET  /api/v1/hello          who is this (no sign-in)
     POST /api/v1/pair           pair a phone, by Plex ownership or by code
     GET  /api/v1/status         free space and this phone's totals
-    POST /api/v1/assets/check   which of these photos are already here
+    POST /api/v1/assets/check   which of these photos are in the upload folder now
     PUT  /api/v1/assets/<key>   upload one photo or video
     POST /api/v1/unpair         forget this phone
     GET  /api/v1/health         the status page's facts, as JSON
@@ -36,6 +36,7 @@ from . import plex as plex_module
 from .config import Config
 from .pairing import AttemptLimiter, codes_match
 from .plex import PlexLink
+from .presence import MISSING, PRESENT, Verifier
 from .statuspage import render_status_page
 from .storage import (
     Storage,
@@ -46,7 +47,7 @@ from .storage import (
     parse_created,
     storage_error_from,
 )
-from .store import Device, Store
+from .store import LEAVE_OUT_WINDOW, Device, Store
 
 log = logging.getLogger("phlix.server")
 
@@ -78,6 +79,11 @@ _DEVICE_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 _ASSET_KEY = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _KINDS = ("photo", "video", "other")
+#: What this helper does beyond API version 1.0, for the app to look for in
+#: /hello and /status. verified-check: "known" means the file is in the upload
+#: folder now, not merely that it was once received. switch-folder: pairing
+#: again may ask for another folder. left-out: a check may answer `leftOut`.
+FEATURES = ("verified-check", "switch-folder", "left-out")
 
 
 class App:
@@ -96,6 +102,9 @@ class App:
         #: Held while a finished upload is placed and recorded, so two uploads
         #: of the same file cannot both be stored.
         self.place_lock = threading.Lock()
+        #: Says which photos are still in the upload folder, and keeps the
+        #: records true.
+        self.verifier = Verifier(config, store, storage, self.place_lock)
         self._space_lock = threading.Lock()
         #: Bytes of uploads that were let in and have not reached the disk yet.
         self._promised = 0
@@ -419,6 +428,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         "code": app.code_pairing},
             "plex": plex,
             "tls": {"sha256": app.tls_fingerprint} if app.tls_fingerprint else None,
+            "features": list(FEATURES),
         })
 
     def _health(self) -> None:
@@ -444,6 +454,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         folder_name = body.get("folderName")
         if not isinstance(folder_name, str) or not folder_name.strip():
             folder_name = device_name
+        # Sent only when the person typed another folder name than the one
+        # Phlix proposed; without it a phone that pairs again keeps its folder.
+        switch_folder = body.get("switchFolder") is True
         display_name = clean_folder_name(device_name)
         folder = clean_folder_name(folder_name)
 
@@ -466,9 +479,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             raise self._fail(400, "bad_request", 'method must be "plex" or "code"')
 
         was_paired = any(known.id == device_id for known in app.store.devices())
-        device, token = app.store.pair_device(device_id, display_name, folder, via=method)
+        before = app.store.device(device_id)
+        with app.place_lock:
+            device, token = app.store.pair_device(device_id, display_name, folder, via=method,
+                                                  switch_folder=switch_folder)
         app.limiter.record_success(address)
         log.info('Paired "%s" (%s) from %s; its files go to "%s"', device.name, method, address, device.folder)
+        if before is not None and before.folder != device.folder:
+            log.info('New photos from "%s" go to "%s" now, as asked. Its photos already on the server stay in '
+                     '"%s".', device.name, device.folder, before.folder)
         if was_paired:
             # Normal for a phone that was restored or set up again. Worth a
             # line all the same: the token it had before has stopped working.
@@ -518,6 +537,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         "writable": app.storage.is_writable()},
             "limits": {"maxUploadBytes": app.config.max_upload_bytes, "maxCheckItems": MAX_CHECK_ITEMS},
             "plex": self._plex_summary(),
+            "features": list(FEATURES),
         })
 
     def _unpair(self) -> None:
@@ -545,25 +565,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if isinstance(sha, str) and _SHA256.match(sha.lower()):
                 hashes[key] = sha.lower()
 
-        known = app.store.known_keys(device.id, keys)
+        # Known: the photo's file is in the upload folder now (presence.py).
         # A photo another phone already sent (a shared library, say) is known
-        # by its content: note it for this phone too, and skip the upload.
-        for key, sha in hashes.items():
-            if key in known:
-                continue
-            with app.place_lock:
-                twin = self._stored_twin(sha)
-                if twin is not None:
-                    app.store.record_asset(device.id, key, sha, twin.relpath, twin.size, None, None)
-                    known.add(key)
-        self._send_json(200, {"known": [key for key in keys if key in known]})
+        # by its content: it is noted for this phone too, and not uploaded.
+        known, left_out = app.verifier.check(device, keys, hashes)
+        answer = {"known": [key for key in keys if key in known]}
+        if left_out:
+            answer["leftOut"] = [key for key in keys if key in left_out]
+        self._send_json(200, answer)
 
     def _stored_twin(self, sha256: str):
-        """A record of this exact content whose file is still on disk."""
-        for asset in self.app.store.assets_with_sha(sha256):
-            if self.app.storage.exists(asset.relpath):
-                return asset
-        return None
+        """A record of this exact content whose file is surely on disk."""
+        return self.app.verifier.stored_twin(sha256)
 
     # -- upload -------------------------------------------------------------
 
@@ -706,27 +719,49 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path is this device's own to know.
         """
         app = self.app
+        # The device as it is now: its folder may have been renamed on the
+        # server while this upload arrived, or switched by a new pairing.
+        # Followed before anything below could make the old folder again.
+        device = app.verifier.follow_folder(device)
         # The same phone sending the same photo again: the answer to its first
-        # upload was lost on the way. Keep the first copy.
+        # upload was lost on the way, or the phone did not know the file was
+        # back. Keep the copy that is there. With the bytes in hand, a file
+        # counts as there only when it surely is.
         earlier = app.store.asset(device.id, key)
-        if earlier is not None and app.storage.exists(earlier.relpath):
-            _remove(temp_path)
-            # Its record may point at a file that another phone stored.
-            return earlier.relpath, False, self._stored_by(device, earlier.relpath, earlier.sha256)
+        returned = False
+        if earlier is not None:
+            state = app.verifier.state(earlier.relpath)
+            if state == PRESENT:
+                _remove(temp_path)
+                if earlier.missing_at is not None:
+                    app.store.clear_missing(earlier)
+                # Its record may point at a file that another phone stored.
+                return earlier.relpath, False, self._stored_by(device, earlier.relpath, earlier.sha256)
+            # Gone for sure, not out of sight for a moment: the photo came back.
+            # It counts towards leaving the photo out only if its file went
+            # soon after it was stored; one that stayed was deleted by a person.
+            gone_at = earlier.missing_at if earlier.missing_at is not None else int(time.time())
+            returned = state == MISSING and gone_at - earlier.stored_at < LEAVE_OUT_WINDOW
         # The same content from another phone, or under another key.
         twin = self._stored_twin(sha256)
         if twin is not None:
             _remove(temp_path)
-            app.store.record_asset(device.id, key, sha256, twin.relpath, size, kind, created_text or None)
+            app.store.record_asset(device.id, key, sha256, twin.relpath, size, kind, created_text or None,
+                                   returned=returned)
             return twin.relpath, False, self._stored_by(device, twin.relpath, sha256)
+        # A name whose file is gone may still be in a record of another
+        # photo: a new file there would make that photo count as backed up.
         relpath, stored = app.storage.place(temp_path, device.folder, filename, created, sha256, size,
-                                            app.store.sha_at_path)
-        app.store.record_asset(device.id, key, sha256, relpath, size, kind, created_text or None)
+                                            app.store.sha_at_path,
+                                            held=lambda path: app.store.held_by_other(path, device.id, key, sha256))
+        app.store.record_asset(device.id, key, sha256, relpath, size, kind, created_text or None,
+                               returned=returned)
         return relpath, stored, True
 
     def _stored_by(self, device: Device, relpath: str, sha256: str) -> bool:
-        """Whether the file at `relpath` was put there by this device's own upload."""
-        return self.app.store.first_device_at(relpath, sha256) == device.id
+        """Whether this device may be told the path: the file is in its own
+        folder, or its own upload put it where it is."""
+        return self.app.verifier.path_is_own(device, relpath, sha256)
 
 
 def health_report(app: App) -> dict:

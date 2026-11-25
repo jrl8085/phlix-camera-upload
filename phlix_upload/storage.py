@@ -61,6 +61,11 @@ def clean_folder_name(name: str, fallback: str = "iPhone") -> str:
     return _clean_component(name, fallback, max_bytes=80)
 
 
+def path_component(text: str) -> str:
+    """One folder of a stored file's path, as `relative_folder` writes it."""
+    return _clean_component(text, "_")
+
+
 def extension_of(filename: str) -> str:
     return os.path.splitext(filename)[1].lstrip(".").lower()
 
@@ -116,7 +121,7 @@ def relative_folder(template: str, device_folder: str, created: _dt.datetime | N
         # One pass: what a value brings with it is never read as a token. A
         # device whose folder is named "{year}" keeps that name.
         filled = re.sub(r"\{(device|year|month|day)\}", lambda match: values[match.group(1)], part)
-        parts.append(_clean_component(filled, "_"))
+        parts.append(path_component(filled))
     return "/".join(part for part in parts if part)
 
 
@@ -200,11 +205,13 @@ class Storage:
             return False
 
     def place(self, temp_path: str, device_folder: str, filename: str, created: _dt.datetime | None,
-              sha256: str, size: int, sha_at_path) -> tuple[str, bool]:
+              sha256: str, size: int, sha_at_path, held=None) -> tuple[str, bool]:
         """Move a finished upload into its folder.
 
         `sha_at_path(relpath)` answers the recorded hash of a file the helper
-        stored earlier, or None. Returns `(relpath, stored)`: `stored` is False
+        stored earlier, or None. `held(relpath)`, if given, says that a record
+        of another photo still points at that name, even if its file is gone:
+        the name is not used. Returns `(relpath, stored)`: `stored` is False
         when an identical file was already at that name, in which case the
         temporary file is deleted and the existing one is kept.
         """
@@ -220,6 +227,8 @@ class Storage:
             name = filename if attempt == 1 else f"{stem} ({attempt}){extension}"
             relpath = f"{folder}/{name}" if folder else name
             final = os.path.join(directory, name)
+            if held is not None and held(relpath):
+                continue
             try:
                 # Creating the name with O_EXCL reserves it: two uploads that
                 # want the same name cannot both get it, and nothing already

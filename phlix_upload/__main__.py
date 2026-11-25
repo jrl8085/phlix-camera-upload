@@ -31,6 +31,7 @@ from . import __version__
 from . import config as config_module
 from .pairing import AttemptLimiter, new_code
 from .plex import PlexLink
+from .presence import SYSTEM_FOLDERS
 from .server import App, Server
 from .storage import Storage
 from .store import Store
@@ -83,6 +84,13 @@ def drop_privileges(config: config_module.Config) -> None:
         return
     os.makedirs(config.config_dir, exist_ok=True)
     _chown_tree(config.config_dir, uid, gid)
+    # The temporary folder may have been made by a person as root, to let a
+    # helper start whose upload folder was emptied: it must become the
+    # helper's own, or no upload could be written there.
+    try:
+        os.chown(config.temp_dir, uid, gid, follow_symlinks=False)
+    except OSError:
+        pass
     try:
         os.setgroups([])
         os.setgid(gid)
@@ -105,6 +113,39 @@ def unmounted_folders(config: config_module.Config, environ=None) -> list[str]:
     if env.get("PHLIX_CONTAINER") != "1" or env.get("ALLOW_UNMOUNTED") == "1":
         return []
     return [path for path in (config.upload_dir, config.config_dir) if not os.path.ismount(path)]
+
+
+class StartRefused(Exception):
+    """The helper must not start. The message says why, and what to do."""
+
+
+def emptied_upload_folder(config: config_module.Config, store: Store) -> int:
+    """The number of files the helper stored in an upload folder that is now
+    empty, or 0 when it may start.
+
+    A share or disk that is not mounted yet leaves an empty folder where the
+    upload folder should be. A helper started there would find every photo
+    gone, and the phones would send them all again, onto the wrong disk. So
+    it does not start; Docker's restart policy tries again until the share is
+    there. The hidden folder `.phlix-upload-tmp` says the folder is the right
+    one: the helper makes it on every start (1.0.1 did too), and a person who
+    empties the folder on purpose makes it to let the helper start.
+    """
+    stored = store.present_count()
+    if not stored:
+        return 0
+    try:
+        names = os.listdir(config.upload_dir)
+    except FileNotFoundError:
+        return stored
+    except OSError:
+        # Cannot tell; preparing the folder will say what is wrong.
+        return 0
+    if os.path.basename(config.temp_dir) in names:
+        return 0
+    if all(name.startswith(".") or name in SYSTEM_FOLDERS for name in names):
+        return stored
+    return 0
 
 
 def resolve_pairing_code(config: config_module.Config, store: Store) -> str:
@@ -138,6 +179,15 @@ def build_app(config: config_module.Config) -> tuple[App, object | None]:
     """Assemble the server's parts. Returns the app and its TLS context."""
     os.makedirs(config.config_dir, exist_ok=True)
     store = Store(config.database_path)
+    expected = emptied_upload_folder(config, store)
+    if expected:
+        store.close()
+        raise StartRefused(
+            f"the upload folder {config.upload_dir} is empty, and the helper stored {expected:,} files there "
+            "before. If the folder is on a share or a disk that is not mounted yet, Docker starts the helper "
+            "again until it is there. If you emptied the folder on purpose, make a folder named "
+            f"{os.path.basename(config.temp_dir)} in it: the helper then starts, and phones send again every "
+            "photo that is still on them.")
     storage = Storage(config.upload_dir, config.temp_dir, config.path_template)
     try:
         os.makedirs(config.upload_dir, exist_ok=True)
@@ -206,7 +256,7 @@ def serve() -> int:
                   "the folder also needs the label for containers: see Troubleshooting in the README.",
                   config.config_dir, error, os.geteuid(), os.getegid())
         return 1
-    except (TLSError, OSError) as error:
+    except (StartRefused, TLSError, OSError) as error:
         log.error("Phlix Camera Upload cannot start: %s", error)
         return 1
 

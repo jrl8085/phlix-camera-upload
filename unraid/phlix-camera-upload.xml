@@ -22,7 +22,7 @@ Phlix is an independent application and is not affiliated with, endorsed, or spo
   <WebUI>https://[IP]:[PORT:7459]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/jrl8085/phlix-camera-upload/main/unraid/phlix-camera-upload.xml</TemplateURL>
   <Icon>https://phlixapp.com/apple-touch-icon.png</Icon>
-  <ExtraParams>--add-host=host.docker.internal:host-gateway</ExtraParams>
+  <ExtraParams>--add-host=host.docker.internal:host-gateway --restart=unless-stopped</ExtraParams>
   <PostArgs/>
   <CPUset/>
   <DateInstalled/>

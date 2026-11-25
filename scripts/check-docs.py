@@ -90,7 +90,7 @@ PROGRAM_TEXT = {
         "Pairing code:", "Phlix Camera Upload cannot start:",
         "The owner of the Plex server can pair from Phlix without the code.",
         "inside a container this is the container's own address",
-        "The helper runs as root",
+        "The helper runs as root", "is empty, and the helper stored",
     ],
     "phlix_upload/server.py": ["Wrong pairing code from", "was already paired and has paired again from"],
     "phlix_upload/tlsutil.py": ["Made a new TLS certificate in"],
@@ -430,6 +430,9 @@ def check_unraid() -> None:
         wrong(f"{path}: the name or the repository changed")
     if "--add-host=host.docker.internal:host-gateway" not in (root.findtext("ExtraParams") or ""):
         wrong(f"{path}: ExtraParams lacks the add-host flag")
+    # Unraid sets no restart policy: a helper that waits for its share would stay stopped.
+    if "--restart=unless-stopped" not in (root.findtext("ExtraParams") or ""):
+        wrong(f"{path}: ExtraParams lacks --restart=unless-stopped")
     passed = {}
     for entry in root.findall("Config"):
         if entry.get("Type") == "Variable":

@@ -337,7 +337,7 @@ A VPN from outside into your home does not help: Phlix uploads only on your home
 
 Most routers hand out addresses for a limited time, and the server can get a new one. Phlix can then lose the helper, above all when you typed the address into the app. Give the server a fixed address: in the router, make a DHCP reservation for it.
 
-After the address has changed, a paired phone looks for the helper again by itself, at the new address of Plex. If it does not find the helper, for example because you typed the address when you set it up, the phone has to connect again. Choose Disconnect on the Camera Upload screen. Then tap Check for the Helper and connect as you did the first time. The phone keeps its folder, and nothing is uploaded twice. Phlix asks again what to back up, with the choices you made before already set.
+After the address has changed, a paired phone looks for the helper again by itself, at the new address of Plex. If it does not find the helper, for example because you typed the address when you set it up, the phone has to connect again. Choose Disconnect on the Camera Upload screen. Then tap Check for the Helper and connect again. Leave the folder name as Phlix shows it: the phone keeps its folder, and nothing is uploaded twice. Phlix asks again what to back up, with the choices you made before already set.
 
 ### Two routers, one behind the other
 
