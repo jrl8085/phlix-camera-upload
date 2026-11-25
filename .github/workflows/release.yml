@@ -206,7 +206,7 @@ jobs:
 
           # The copy must be the same image: the same index digest.
           for name in "${names[@]}"; do
-            copied=$(docker buildx imagetools inspect "$TARGET:$name" | awk '/^Digest:/ { print $2; exit }')
+            copied=$(docker buildx imagetools inspect "$TARGET:$name" | awk '/^Digest:/ && !found { found = $2 } END { print found }')
             echo "$TARGET:$name is $copied"
             if [ "$copied" != "${SOURCE##*@}" ]; then
               echo "::error::$TARGET:$name is $copied, not ${SOURCE##*@} as on ghcr.io."

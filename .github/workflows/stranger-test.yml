@@ -237,8 +237,8 @@ jobs:
           echo '{}' > "$RUNNER_TEMP/docker-config/config.json"
           export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
           for tag in 1 latest; do
-            hub=$(docker buildx imagetools inspect "$DOCKERHUB_IMAGE:$tag" | awk '/^Digest:/ { print $2; exit }')
-            ghcr=$(docker buildx imagetools inspect "ghcr.io/jrl8085/phlix-camera-upload:$tag" | awk '/^Digest:/ { print $2; exit }')
+            hub=$(docker buildx imagetools inspect "$DOCKERHUB_IMAGE:$tag" | awk '/^Digest:/ && !found { found = $2 } END { print found }')
+            ghcr=$(docker buildx imagetools inspect "ghcr.io/jrl8085/phlix-camera-upload:$tag" | awk '/^Digest:/ && !found { found = $2 } END { print found }')
             echo "$tag: Docker Hub $hub, ghcr.io $ghcr"
             [ -n "$hub" ] && [ "$hub" = "$ghcr" ]
           done
