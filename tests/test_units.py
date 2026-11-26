@@ -1,6 +1,7 @@
 """Settings, file naming, pairing codes and the database, without a server."""
 
 import datetime as dt
+import errno
 import os
 import shutil
 import tempfile
@@ -146,6 +147,46 @@ class NamingTests(unittest.TestCase):
         self.assertEqual(storage.clean_folder_name(".."), "iPhone")
         self.assertNotIn("/", storage.clean_folder_name("a/b"))
 
+    def test_folders_that_are_never_part_of_the_upload_folder(self):
+        for name in (".hidden", ".phlix-upload-tmp", "lost+found", "@eaDir", "#recycle", "#snapshot", "@Recycle",
+                     "@Recently-Snapshot", "$RECYCLE.BIN", "$Recycle.Bin", "$recycle.bin", "RECYCLER", "Recycler",
+                     "RECYCLED", "recycled", "System Volume Information", "SYSTEM VOLUME INFORMATION", "@EADIR"):
+            self.assertTrue(storage.is_outside_name(name), name)
+        for name in ("iPhone", "2026", "Recycled photos", "$RECYCLE", "Recycle Bin", "eaDir", "My.Photos"):
+            self.assertFalse(storage.is_outside_name(name), name)
+        self.assertTrue(storage.is_outside_path("$RECYCLE.BIN/S-1-5-21/$R8KQ2ZD/2026/2026-11"))
+        self.assertTrue(storage.is_outside_path("Sorted/system volume information"))
+        self.assertTrue(storage.is_outside_path("iPhone/.trash/2026"))
+        self.assertFalse(storage.is_outside_path("iPhone/2026/2026-11"))
+        self.assertFalse(storage.is_outside_path(""))
+        # No phone gets such a folder as its own: its photos would never count as backed up.
+        for name in ("$RECYCLE.BIN", "recycled", "System Volume Information", "@eaDir", "lost+found"):
+            self.assertEqual(storage.clean_folder_name(name), "iPhone", name)
+
+    def test_a_folder_the_layout_itself_names_is_part_of_the_upload_folder(self):
+        # Helpers before 1.0.3 let a phone have such a folder, and a layout name one.
+        own = storage.layout_names("{device}/{year}/{year}-{month}", ["Recycled", "iPhone"])
+        self.assertEqual(own, (frozenset({"Recycled", "iPhone"}), frozenset(), frozenset()))
+        self.assertFalse(storage.is_outside_path("Recycled/2026/2026-11", own))
+        # Only at its own depth, spelt as the helper wrote it, and not what lies in it.
+        for folder in ("RECYCLED/2026/2026-11", "Sorted/Recycled", "Recycled/$RECYCLE.BIN/2026", "Recycled/.trash",
+                       "$RECYCLE.BIN/S-1-5-21/$R8KQ2ZD/2026/2026-11", "iPhone/Recycled"):
+            self.assertTrue(storage.is_outside_path(folder, own), folder)
+        own = storage.layout_names("lost+found/{year}/Phone {device}/@eaDir", ["one", "two"])
+        self.assertEqual(own, (frozenset({"lost+found"}), frozenset(), frozenset({"Phone one", "Phone two"}),
+                               frozenset({"@eaDir"})))
+        self.assertFalse(storage.is_outside_path("lost+found/2026/Phone one/@eaDir", own))
+        self.assertTrue(storage.is_outside_path("lost+found/2026/@eaDir", own))
+        self.assertEqual(storage.layout_names("", ["iPhone"]), ())
+        # What it names is what `relative_folder` writes.
+        when = storage.parse_created("2026-11-21T22:15:03-06:00")
+        for template in ("{device}/{year}", "Photos: {device}./x", "{year}/{device}"):
+            written = storage.relative_folder(template, "a?b", when).split("/")
+            names = storage.layout_names(template, ["a?b"])
+            self.assertEqual(len(written), len(names))
+            for part, allowed in zip(written, names):
+                self.assertTrue(not allowed or part in allowed, (template, part))
+
     def test_the_folder_follows_the_photos_own_local_date(self):
         late = storage.parse_created("2026-12-31T23:10:05-06:00")
         self.assertEqual(storage.relative_folder("{device}/{year}/{year}-{month}", "iPhone", late),
@@ -226,6 +267,26 @@ class PlacementTests(unittest.TestCase):
         self.assertTrue(os.path.exists(stale))
         self.assertEqual(self.storage.sweep_temp(max_age_seconds=0), 1)
         self.assertFalse(os.path.exists(stale))
+
+    def test_why_the_upload_folder_cannot_be_written(self):
+        self.assertIsNone(self.storage.write_trouble())
+        for code, trouble in ((errno.ENOENT, storage.GONE), (errno.EACCES, storage.NOT_WRITABLE),
+                              (errno.EROFS, storage.NOT_WRITABLE), (errno.EIO, storage.NOT_WRITABLE)):
+            with mock.patch.object(os, "makedirs", side_effect=OSError(code, os.strerror(code))):
+                self.assertEqual(self.storage.write_trouble(), trouble, errno.errorcode[code])
+                self.assertFalse(self.storage.is_writable())
+                # Asked to keep the temporary folder there, it never raises.
+                self.storage.keep_temp_dir()
+        shutil.rmtree(self.storage.temp_dir)
+        with mock.patch.object(os, "mkdir", side_effect=OSError(errno.EACCES, os.strerror(errno.EACCES))):
+            self.storage.keep_temp_dir()
+        self.assertFalse(os.path.exists(self.storage.temp_dir))
+        self.storage.keep_temp_dir()
+        self.assertTrue(os.path.isdir(self.storage.temp_dir))
+        # Only the hidden folder is made, never an upload folder that is gone.
+        shutil.rmtree(self.storage.upload_dir)
+        self.storage.keep_temp_dir()
+        self.assertFalse(os.path.exists(self.storage.upload_dir))
 
     def test_free_space_and_writability(self):
         free, total = self.storage.disk_usage()
@@ -481,6 +542,63 @@ class StoreTests(unittest.TestCase):
         self.assertFalse(self.store.record_twin("device-0001", "k" * 32, "b" * 64, twin))
         self.assertTrue(self.store.record_twin("device-0002", "j" * 32, "a" * 64, twin))
         self.assertEqual(self.store.asset("device-0002", "j" * 32).relpath, "Sorted/x.jpg")
+
+    def test_a_deleted_folder_restarts_the_count_and_a_newer_record_is_still_noticed(self):
+        def returned(times):
+            for _ in range(times):
+                self.store.record_asset("device-0001", "k" * 32, "a" * 64, "iPhone/2026/x.jpg", 10, "photo", None,
+                                        returned=True)
+            return self.store.asset("device-0001", "k" * 32)
+
+        self.store.record_asset("device-0001", "k" * 32, "a" * 64, "iPhone/2026/x.jpg", 10, "photo", None)
+        seen = returned(3)
+        self.assertEqual(seen.returns, 3)
+        # The photo was sent again while a check looked: the write of the check changes nothing.
+        self.store.record_asset("device-0001", "k" * 32, "a" * 64, "iPhone/2026/x.jpg", 10, "photo", None,
+                                returned=True)
+        self.assertFalse(self.store.flag_missing(seen, 1, restart=True))
+        now = self.store.asset("device-0001", "k" * 32)
+        self.assertEqual((now.returns, now.missing_at), (4, None))
+        self.assertTrue(self.store.flag_missing(now, 1, restart=True))
+        now = self.store.asset("device-0001", "k" * 32)
+        self.assertEqual((now.returns, now.missing_at), (0, 1))
+        # Without it the count stays.
+        seen = returned(2)
+        self.assertTrue(self.store.flag_missing(seen, 2))
+        self.assertEqual(self.store.asset("device-0001", "k" * 32).returns, 2)
+
+    def test_counts_made_by_helper_1_0_2_start_again_once(self):
+        path = os.path.join(self.root, "config", "helper.db")
+
+        def count_after_reopening(set_to):
+            with self.store.transaction():
+                self.store._db.execute("UPDATE assets SET returns = ?", (set_to,))
+            self.store.close()
+            self.store = Store(path)
+            return self.store.asset("device-0001", "k" * 32).returns
+
+        self.store.record_asset("device-0001", "k" * 32, "a" * 64, "iPhone/2026/x.jpg", 10, "photo", None)
+        # A new file is marked from the start: its counts are 1.0.3's own.
+        self.assertEqual(count_after_reopening(3), 3)
+        # A file that helper 1.0.2 left has no mark.
+        self.store._db.execute("DELETE FROM meta WHERE key = 'returns_restarted'")
+        self.assertEqual(count_after_reopening(3), 0)
+        self.assertEqual(self.store.asset("device-0001", "k" * 32).relpath, "iPhone/2026/x.jpg")
+        self.assertEqual(count_after_reopening(3), 3)
+
+    def test_the_count_restarts_under_a_deleted_folder_and_nowhere_else(self):
+        paths = ["50%/2026/x.jpg", "50%/2026/2026-11/x.jpg", "50%/2026 b/x.jpg", "50%/20260/x.jpg",
+                 "50% off/2026/x.jpg", "50X/2026/x.jpg", "50%/x.jpg", "50%/2026"]
+        for number, path in enumerate(paths):
+            # Stored, and sent again twice.
+            for _ in range(3):
+                self.store.record_asset(f"device-000{number % 2}", f"{number:032d}", "a" * 64, path, 1, "photo",
+                                        None, returned=True)
+        self.assertEqual(self.store.restart_returns_under("50%/2026/"), 2)
+        self.assertEqual(self.store.restart_returns_under("50%/2026/"), 0)
+        counts = {path: self.store.asset(f"device-000{number % 2}", f"{number:032d}").returns
+                  for number, path in enumerate(paths)}
+        self.assertEqual(counts, {path: 0 if path.startswith("50%/2026/") else 2 for path in paths})
 
     def test_a_renamed_folder_moves_every_record_under_it_and_no_other(self):
         paths = ["50%/2026/x.jpg", "50% off/2026/x.jpg", "a_b/x.jpg", "aXb/x.jpg", "a_b 2/x.jpg", "a_bc/x.jpg"]

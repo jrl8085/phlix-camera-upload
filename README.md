@@ -341,7 +341,7 @@ Camera Uploads/
 - **The same photo from two phones** is stored once. The helper compares the contents of the files, not their names. The photo stays in the folder of the phone that sent it first.
 - **A photo counts as backed up** only while its file is in the upload folder. If you delete a file, or a device's whole folder, and the photo is still on the device, Phlix uploads it again. It checks when you open the Camera Upload screen, and from time to time while it backs up at home.
 - **Sort files into any folders** inside the upload folder, keeping their names: Phlix finds them there. A device's folder you rename is followed, and new photos go into it. A file you rename, or move out of the upload folder, is uploaded again. A file you edit still counts. Nothing is ever overwritten.
-- **If a file keeps leaving the upload folder soon after each upload**, for example because a program on the server moves new files away, Phlix sends it again three times at most, then lists it under Can't Be Backed Up. When you connect the phone again, or delete its whole folder, Phlix sends those photos again too. To keep a photo off the server, hide it in the Photos app: Phlix never uploads hidden photos.
+- **If a file keeps leaving the upload folder soon after each upload**, for example because a program on the server moves new files away, Phlix sends it again three times at most, then lists it under Can't Be Backed Up. A photo whose folder you deleted is never listed there: Phlix sends it again each time. So a program that also removes the folders it empties is not noticed, and Phlix sends its photos again on every run: set such a program to leave the folders in place. When you connect the phone again, or delete the folder that held a listed photo, Phlix sends that photo again too. To keep a photo off the server, hide it in the Photos app: Phlix never uploads hidden photos.
 
 The helper accepts these file types and refuses everything else:
 
@@ -491,7 +491,7 @@ docker exec phlix-camera-upload python -m phlix_upload doctor
 A healthy helper answers like this:
 
 ```
-Phlix Camera Upload 1.0.2
+Phlix Camera Upload 1.0.3
 OK       The helper is running on port 7459
 OK       The upload folder /photos can be written to.
 OK       224.5 GB free on the upload disk.

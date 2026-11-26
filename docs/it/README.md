@@ -489,7 +489,7 @@ docker exec phlix-camera-upload python -m phlix_upload doctor
 Un assistente che funziona bene risponde così:
 
 ```
-Phlix Camera Upload 1.0.1
+Phlix Camera Upload 1.0.3
 OK       The helper is running on port 7459
 OK       The upload folder /photos can be written to.
 OK       224.5 GB free on the upload disk.

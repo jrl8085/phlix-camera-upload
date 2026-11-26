@@ -1,5 +1,6 @@
 """The helper as the app meets it: over HTTP, on a real socket."""
 
+import errno
 import hashlib
 import http.client
 import json
@@ -21,6 +22,21 @@ from phlix_upload.tlsutil import fingerprint
 from .helpers import MACHINE_ID, OWNER_TOKEN, SHARED_TOKEN, FakePlex, key, running
 
 CREATED = "2026-11-21T22:15:03-06:00"
+
+
+def temp_folder_fails(helper, code):
+    """Making the helper's temporary folder fails with `code`. With ENOENT
+    that is what a container sees whose upload folder was removed and made
+    again on the server: it still holds the removed one."""
+    real = os.makedirs
+    wanted = helper.app.storage.temp_dir
+
+    def fake(path, *arguments, **keywords):
+        if os.fspath(path) == wanted:
+            raise OSError(code, os.strerror(code), path)
+        return real(path, *arguments, **keywords)
+
+    return mock.patch.object(os, "makedirs", fake)
 
 
 class HelloAndPagesTests(unittest.TestCase):
@@ -52,6 +68,40 @@ class HelloAndPagesTests(unittest.TestCase):
         for secret in (code, code.replace("-", ""), token, "Secret Phone Name", "private-name"):
             self.assertNotIn(secret, text)
 
+    def test_the_health_check_never_waits_for_the_upload_folder(self):
+        # A share that stopped answering holds whoever looks at it. Docker
+        # must still hear "ok", and only one thread may wait there.
+        with running() as helper:
+            temp_dir = helper.app.storage.temp_dir
+            waiting, release, looks = threading.Event(), threading.Event(), []
+            real = os.path.isdir
+
+            def stalled(path):
+                if os.fspath(path) == temp_dir:
+                    looks.append(path)
+                    waiting.set()
+                    release.wait(20)
+                return real(path)
+
+            try:
+                with mock.patch.object(os.path, "isdir", stalled):
+                    started = time.monotonic()
+                    self.assertEqual(helper.request("GET", "/healthz")[:2], (200, b"ok\n"))
+                    self.assertTrue(waiting.wait(5))
+                    for _ in range(3):
+                        self.assertEqual(helper.request("GET", "/healthz")[:2], (200, b"ok\n"))
+                    self.assertLess(time.monotonic() - started, 5)
+                    self.assertEqual(len(looks), 1)
+                    release.set()
+                    # Once the share answers again, the folder is looked after as before.
+                    deadline = time.monotonic() + 5
+                    while len(looks) < 2 and time.monotonic() < deadline:
+                        helper.request("GET", "/healthz")
+                        time.sleep(0.02)
+                    self.assertGreaterEqual(len(looks), 2)
+            finally:
+                release.set()
+
     def test_health_check_and_unknown_addresses(self):
         with running() as helper:
             self.assertEqual(helper.request("GET", "/healthz")[:2], (200, b"ok\n"))
@@ -61,6 +111,29 @@ class HelloAndPagesTests(unittest.TestCase):
             self.assertEqual((status, body["error"]["code"]), (405, "method_not_allowed"))
             status, body, _ = helper.request("GET", f"/api/v1/assets/{key(1)}")
             self.assertEqual((status, body["error"]["code"]), (405, "method_not_allowed"))
+
+    def test_the_status_page_says_when_the_upload_folder_is_gone(self):
+        with running() as helper:
+            with temp_folder_fails(helper, errno.ENOENT):
+                page = helper.request("GET", "/")[1].decode()
+                health = helper.request("GET", "/api/v1/health")[1]
+            self.assertIn("The upload folder is gone, or it was replaced while the helper was running. "
+                          "Restart the helper.", page)
+            self.assertNotIn("PUID", page)
+            self.assertNotIn("permissions", page)
+            self.assertEqual((health["ok"], health["uploadFolder"]["writable"], health["uploadFolder"]["gone"]),
+                             (False, False, True))
+            # A folder the helper may not write to keeps the words it had.
+            with temp_folder_fails(helper, errno.EACCES):
+                page = helper.request("GET", "/")[1].decode()
+                health = helper.request("GET", "/api/v1/health")[1]
+            self.assertIn("The helper cannot write here. Check the folder&#x27;s permissions, or set PUID and PGID.",
+                          page)
+            self.assertNotIn("is gone", page)
+            self.assertEqual((health["uploadFolder"]["writable"], health["uploadFolder"]["gone"]), (False, False))
+            health = helper.request("GET", "/api/v1/health")[1]
+            self.assertEqual((health["ok"], health["uploadFolder"]["writable"], health["uploadFolder"]["gone"]),
+                             (True, True, False))
 
     def test_nothing_stored_is_ever_served_back(self):
         with running() as helper:
@@ -328,6 +401,29 @@ class UploadTests(unittest.TestCase):
             status, body, _ = helper.upload(token, key(1), b"photo")
             self.assertEqual((status, body["status"]), (201, "stored"))
             self.assertEqual(helper.files(), [path])
+
+    def test_an_upload_folder_that_is_gone_is_not_called_a_permissions_problem(self):
+        with running() as helper:
+            token = helper.pair()
+            with temp_folder_fails(helper, errno.ENOENT), self.assertLogs("phlix.server", level="ERROR") as logs:
+                status, body, _ = helper.upload(token, key(1), b"photo")
+                writable = helper.request("GET", "/api/v1/status", token=token)[1]["storage"]["writable"]
+            # The code the app knows; the words say what is the matter.
+            self.assertEqual((status, body["error"]["code"]), (507, "not_writable"))
+            self.assertIn("is gone", body["error"]["message"])
+            self.assertIn("Restart the helper", body["error"]["message"])
+            self.assertFalse(writable)
+            text = "\n".join(logs.output)
+            self.assertIn(f"the upload folder {helper.upload_dir} is gone, or it was replaced while the helper "
+                          "was running. Restart the helper", text)
+            self.assertNotIn("not allowed", text)
+            with temp_folder_fails(helper, errno.EACCES), self.assertLogs("phlix.server", level="ERROR") as logs:
+                status, body, _ = helper.upload(token, key(1), b"photo")
+            self.assertEqual((status, body["error"]["code"], body["error"]["message"]),
+                             (507, "not_writable", "The helper is not allowed to write to the upload folder"))
+            self.assertIn("Cannot write to the upload folder", "\n".join(logs.output))
+            self.assertNotIn("is gone", "\n".join(logs.output))
+            self.assertEqual(helper.upload(token, key(1), b"photo")[0], 201)
 
     def test_a_damaged_upload_is_thrown_away(self):
         with running() as helper:
@@ -829,6 +925,23 @@ class AdminCommandTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("is not answering on port", out)
         self.assertIn("docker logs phlix-camera-upload", out)
+
+    def test_doctor_advises_a_restart_when_the_upload_folder_is_gone(self):
+        with running() as helper:
+            with temp_folder_fails(helper, errno.ENOENT):
+                code, out = self._doctor(helper)
+            self.assertEqual(code, 1, out)
+            self.assertIn(f"PROBLEM  The upload folder {helper.upload_dir} is gone, or it was replaced while the "
+                          "helper was running", out)
+            self.assertIn("restart the helper: docker compose restart", out)
+            self.assertNotIn("PUID", out)
+            # A folder the helper may not write to keeps the advice it had.
+            with temp_folder_fails(helper, errno.EACCES):
+                code, out = self._doctor(helper)
+            self.assertEqual(code, 1, out)
+            self.assertIn(f"PROBLEM  The helper cannot write to the upload folder {helper.upload_dir}.", out)
+            self.assertIn("Fix: Set PUID and PGID", out)
+            self.assertNotIn("is gone", out)
 
     def test_plex_only_pairing_with_no_plex_is_a_problem_not_a_note(self):
         with running(PAIRING="plex") as helper:

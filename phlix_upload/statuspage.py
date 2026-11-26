@@ -10,6 +10,7 @@ from __future__ import annotations
 import html
 
 from . import __version__
+from .storage import GONE, GONE_MESSAGE
 
 
 def _human(size: int) -> str:
@@ -40,10 +41,20 @@ def _plex_row(app, identity) -> str:
     return _row("Plex Media Server", f"Found (version {identity.version})" if identity.version else "Found", "ok")
 
 
+def _upload_folder_row(trouble: str | None) -> str:
+    if trouble is None:
+        return _row("Upload folder", "Ready", "ok")
+    if trouble == GONE:
+        # Permissions are not the matter, so the page does not send anyone to them.
+        return _row("Upload folder", GONE_MESSAGE, "bad")
+    return _row("Upload folder", "The helper cannot write here. Check the folder's permissions, or set PUID "
+                "and PGID.", "bad")
+
+
 def render_status_page(app) -> str:
     config = app.config
     free, total = app.storage.disk_usage()
-    writable = app.storage.is_writable()
+    trouble = app.storage.write_trouble()
     low = free < config.min_free_bytes
     identity = app.plex.identity()
     devices = len(app.store.devices())
@@ -51,8 +62,7 @@ def render_status_page(app) -> str:
 
     rows = [
         _row("Helper", f"Running, version {__version__}", "ok"),
-        _row("Upload folder", "Ready" if writable else "The helper cannot write here. Check the folder's "
-             "permissions, or set PUID and PGID.", "ok" if writable else "bad"),
+        _upload_folder_row(trouble),
         _row("Free space", f"{_human(free)} of {_human(total)}" + (" (too little: uploads are paused)" if low else ""),
              "bad" if low else "ok"),
         _plex_row(app, identity),

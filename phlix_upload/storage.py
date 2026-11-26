@@ -14,6 +14,7 @@ import os
 import re
 import secrets
 import shutil
+import threading
 import time
 import unicodedata
 
@@ -34,6 +35,17 @@ _WINDOWS_RESERVED = frozenset(
 # Characters a Windows or SMB share refuses, plus the path separators.
 _FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
 _MAX_NAME_BYTES = 150
+
+#: Folders that a NAS or Windows keeps for itself inside any shared folder or
+#: drive: recycle bins, snapshots, indexes. What is in one of them is not in
+#: the upload folder: Windows keeps the name, size and date of every file of
+#: a deleted folder in `$RECYCLE.BIN`, and such a file must never be taken
+#: for a photo that is backed up.
+SYSTEM_FOLDERS = frozenset({
+    "lost+found", "@eaDir", "#recycle", "#snapshot", "@Recycle", "@Recently-Snapshot",
+    "$RECYCLE.BIN", "RECYCLER", "RECYCLED", "System Volume Information",
+})
+_SYSTEM_FOLDERS_FOLDED = frozenset(name.casefold() for name in SYSTEM_FOLDERS)
 
 
 class StorageError(Exception):
@@ -56,9 +68,35 @@ def _clean_component(text: str, fallback: str, max_bytes: int = _MAX_NAME_BYTES)
     return text.strip(" .") or fallback
 
 
+def is_outside_name(name: str) -> bool:
+    """Whether a folder of this name is never part of the upload folder: a
+    hidden one (the name starts with a dot), or one of SYSTEM_FOLDERS in any
+    case, because Windows and most shares ignore case. This is the one place
+    that says so; the search for moved files, the following of a renamed
+    folder, the answers about recorded paths and the check at start all ask
+    here."""
+    return name.startswith(".") or name.casefold() in _SYSTEM_FOLDERS_FOLDED
+
+
+def is_outside_path(folder: str, own: tuple[frozenset[str], ...] = ()) -> bool:
+    """Whether `folder`, relative to the upload folder, is or lies in a
+    folder that is never part of it. `own` (see `layout_names`) holds, for
+    each depth, the names the helper's own layout writes there. Such a folder
+    is part of the upload folder whatever it is called: helpers before 1.0.3
+    let a phone have "Recycled" as its folder, and the photos in it are
+    really there."""
+    for depth, part in enumerate(piece for piece in folder.split("/") if piece):
+        if is_outside_name(part) and not (depth < len(own) and part in own[depth]):
+            return True
+    return False
+
+
 def clean_folder_name(name: str, fallback: str = "iPhone") -> str:
-    """A device's folder name as it will appear in the upload folder."""
-    return _clean_component(name, fallback, max_bytes=80)
+    """A device's folder name as it will appear in the upload folder. Never
+    the name of a system folder: photos stored there would not count as
+    being in the upload folder."""
+    cleaned = _clean_component(name, fallback, max_bytes=80)
+    return fallback if is_outside_name(cleaned) else cleaned
 
 
 def path_component(text: str) -> str:
@@ -125,6 +163,21 @@ def relative_folder(template: str, device_folder: str, created: _dt.datetime | N
     return "/".join(part for part in parts if part)
 
 
+def layout_names(template: str, device_folders) -> tuple[frozenset[str], ...]:
+    """For each folder of the layout, counted from the upload folder, the
+    names the helper itself writes there for devices with these folders. A
+    folder named for a date has none: a date is never a system folder's name."""
+    names: list[frozenset[str]] = []
+    for part in (piece for piece in template.split("/") if piece):
+        if re.search(r"\{(year|month|day)\}", part):
+            names.append(frozenset())
+        elif "{device}" in part:
+            names.append(frozenset(relative_folder(part, folder, None) for folder in device_folders))
+        else:
+            names.append(frozenset({relative_folder(part, "", None)}))
+    return tuple(names)
+
+
 def file_sha256(path: str) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
@@ -140,6 +193,7 @@ class Storage:
         self.upload_dir = os.path.abspath(upload_dir)
         self.temp_dir = os.path.abspath(temp_dir)
         self.path_template = path_template
+        self._keep_lock = threading.Lock()
 
     # -- state --------------------------------------------------------------
 
@@ -166,16 +220,44 @@ class Storage:
                 continue
         return removed
 
-    def is_writable(self) -> bool:
+    def write_trouble(self) -> str | None:
+        """None when the helper can write to the upload folder, else GONE or
+        NOT_WRITABLE (see `trouble_of`)."""
         probe = os.path.join(self.temp_dir, f".probe-{secrets.token_hex(6)}")
         try:
             os.makedirs(self.temp_dir, exist_ok=True)
             with open(probe, "wb"):
                 pass
             os.unlink(probe)
-            return True
+            return None
+        except OSError as error:
+            return trouble_of(error)
+
+    def is_writable(self) -> bool:
+        return self.write_trouble() is None
+
+    def keep_temp_dir(self) -> None:
+        """Make the temporary folder again if it is gone. It tells the next
+        start that the upload folder is the right one, and a person who
+        deletes everything in the upload folder deletes it too. Best effort:
+        a folder that cannot be made is found by the next upload. Nearly
+        always the folder is there, and then the disk is only read, because
+        Docker's health check asks for this every 30 seconds.
+
+        Only the hidden folder is made, never the upload folder itself: where
+        that is gone (a disk that is not mounted), a folder made in its place
+        would tell the next start that the wrong disk is the right one. And
+        while one call waits for a share that does not answer, the next ones
+        return at once, so that one thread at most ever waits there."""
+        if not self._keep_lock.acquire(blocking=False):
+            return
+        try:
+            if not os.path.isdir(self.temp_dir):
+                os.mkdir(self.temp_dir)
         except OSError:
-            return False
+            pass
+        finally:
+            self._keep_lock.release()
 
     def disk_usage(self) -> tuple[int, int]:
         """(free bytes, total bytes) of the disk holding the upload folder."""
@@ -272,6 +354,28 @@ class Storage:
             return file_sha256(final) == sha256
         except OSError:
             return False
+
+
+#: Why the helper cannot write to the upload folder.
+GONE = "gone"
+NOT_WRITABLE = "not_writable"
+#: What the helper says when the reason is GONE.
+GONE_MESSAGE = ("The upload folder is gone, or it was replaced while the helper was running. "
+                "Restart the helper.")
+
+
+def trouble_of(error: OSError) -> str:
+    """GONE when a failed write says that the upload folder itself is no
+    longer there, else NOT_WRITABLE.
+
+    Making the temporary folder makes a missing upload folder as well, so it
+    fails with ENOENT only when nothing can be made where the upload folder
+    was. That is so when the folder was removed and made again under a
+    running container: the container still holds the removed one, until it is
+    restarted. Another owner or other permissions would not help, so the
+    helper must not advise them.
+    """
+    return GONE if error.errno == errno.ENOENT else NOT_WRITABLE
 
 
 def storage_error_from(error: OSError) -> StorageError:

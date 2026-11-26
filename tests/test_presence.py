@@ -85,6 +85,28 @@ def failing_stat(paths, code=errno.EIO):
     return mock.patch.object(os, "stat", fake)
 
 
+def wait_for(condition, seconds=5.0):
+    """Whether `condition()` came true within `seconds`. The health check
+    answers first and looks at the disk afterwards."""
+    deadline = time.monotonic() + seconds
+    while not condition() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    return condition()
+
+
+def count_stats(path):
+    """Counts the looks (os.stat) at `path` while the block runs: `looks[0]`."""
+    real = os.stat
+    looks = [0]
+
+    def spy(target, *arguments, **keywords):
+        if isinstance(target, (str, bytes, os.PathLike)) and os.fspath(target) == path:
+            looks[0] += 1
+        return real(target, *arguments, **keywords)
+
+    return mock.patch.object(os, "stat", spy), looks
+
+
 class DeletedFilesTests(unittest.TestCase):
     def test_a_deleted_file_is_no_longer_backed_up_and_is_stored_again(self):
         with running() as helper:
@@ -175,6 +197,154 @@ class DeletedFilesTests(unittest.TestCase):
             self.assertEqual(check(helper, token, [1, 2]), {"known": [1, 2]})
             # Counted since the folder was last deleted.
             self.assertEqual(helper.app.store.asset("device-0001", key(1)).returns, 1)
+
+    def test_a_year_folder_deleted_again_and_again_never_leaves_photos_out(self):
+        # A person who tests deletes a folder inside the device's folder, and
+        # does it again. Deleting a folder is never what a program does that
+        # takes new files away, so no photo is left out for it. (With nine
+        # photos the month's folder is listed; with two, each file is looked up.)
+        for count in (2, 9):
+            with self.subTest(photos=count), running() as helper:
+                token = helper.pair()
+                store = helper.app.store
+                numbers = list(range(1, count + 1))
+                for number in numbers:
+                    put(helper, token, number)
+                for _ in range(4):
+                    shutil.rmtree(disk(helper, "iPhone/2026"))
+                    self.assertEqual(check(helper, token, numbers), {"known": []})
+                    self.assertEqual(store.asset("device-0001", key(1)).returns, 0)
+                    self.assertIsNotNone(store.asset("device-0001", key(1)).missing_at)
+                    for number in numbers:
+                        self.assertEqual(put(helper, token, number)[0], 201)
+                self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                # Counted since the folder was last deleted.
+                self.assertEqual(store.asset("device-0001", key(2)).returns, 1)
+                # Single files taken away, the folder left in place: counted as before.
+                for returned in range(2, 4):
+                    os.unlink(disk(helper, path_of(1)))
+                    self.assertEqual(check(helper, token, numbers), {"known": numbers[1:]})
+                    self.assertEqual(put(helper, token, 1)[0], 201)
+                    self.assertEqual(store.asset("device-0001", key(1)).returns, returned)
+                os.unlink(disk(helper, path_of(1)))
+                self.assertEqual(check(helper, token, numbers), {"known": numbers[1:], "leftOut": [1]})
+
+    def test_a_deleted_folder_lets_a_left_out_photo_be_sent_again(self):
+        with running() as helper:
+            token = helper.pair()
+            put(helper, token, 1)
+            for _ in range(3):
+                os.unlink(disk(helper, path_of(1)))
+                check(helper, token, [1])
+                put(helper, token, 1)
+            os.unlink(disk(helper, path_of(1)))
+            self.assertEqual(check(helper, token, [1]), {"known": [], "leftOut": [1]})
+            # The month's folder goes too: now a person did it.
+            os.rmdir(disk(helper, f"iPhone/{MONTH}"))
+            self.assertEqual(check(helper, token, [1]), {"known": []})
+            self.assertEqual(helper.app.store.asset("device-0001", key(1)).returns, 0)
+            self.assertEqual(put(helper, token, 1)[0], 201)
+            self.assertEqual(check(helper, token, [1]), {"known": [1]})
+
+    def test_a_deleted_folder_restarts_the_count_of_photos_asked_about_later(self):
+        # The phone asks about its photos in several requests. The photos of
+        # the first request, sent again, make the folder again before the
+        # others are asked about.
+        with running() as helper:
+            token = helper.pair()
+            other = helper.pair("device-0002", folder="Alex")
+            store = helper.app.store
+            for number in range(1, 3):
+                put(helper, token, number)
+            # The same photo on a second phone: its record points at the first one's file.
+            self.assertEqual(put(helper, other, 5, b"photo number 2")[1]["status"], "duplicate")
+            with store.transaction():
+                store._db.execute("UPDATE assets SET returns = 2 WHERE device_id = 'device-0002'")
+            put(helper, token, 3, created="2025-06-01T10:00:00+02:00")
+            for time_deleted in range(1, 5):
+                shutil.rmtree(disk(helper, f"iPhone/{MONTH}"))
+                os.unlink(disk(helper, "iPhone/2025/2025-06/IMG_0003.HEIC"))
+                self.assertEqual(check(helper, token, [1]), {"known": []})
+                self.assertEqual(store.asset("device-0002", key(5)).returns, 0)
+                self.assertEqual(put(helper, token, 1)[0], 201)
+                # Asked about only now, with their folder there again. The
+                # photo in a folder that was never deleted went away by
+                # itself each time, and is left out the fourth time as before.
+                self.assertEqual(check(helper, token, [2, 3]),
+                                 {"known": []} if time_deleted < 4 else {"known": [], "leftOut": [3]})
+                self.assertEqual(check(helper, other, [5]), {"known": []})
+                self.assertEqual(put(helper, token, 2)[0], 201)
+                self.assertEqual(put(helper, other, 5, b"photo number 2")[0], 200)
+                if time_deleted < 4:
+                    self.assertEqual(put(helper, token, 3, created="2025-06-01T10:00:00+02:00")[0], 201)
+            self.assertEqual(store.asset("device-0001", key(2)).returns, 1)
+            self.assertEqual(store.asset("device-0001", key(3)).returns, 3)
+            self.assertEqual(check(helper, token, [1, 2, 3]), {"known": [1, 2], "leftOut": [3]})
+
+    def test_an_upload_that_makes_a_deleted_folder_again_restarts_the_count(self):
+        # The folder is deleted while the phone is still sending. A photo just
+        # taken arrives before the phone asks about the others, and its upload
+        # makes the folder again: the check then finds the folder in place.
+        with running() as helper:
+            token = helper.pair()
+            store = helper.app.store
+            put(helper, token, 1)
+            put(helper, token, 2)
+            # Photo 2 was sorted into the year's folder, and photo 3 keeps the device's folder there.
+            os.rename(disk(helper, path_of(2)), disk(helper, "iPhone/2026/IMG_0002.HEIC"))
+            put(helper, token, 3, created="2025-06-01T10:00:00+02:00")
+            self.assertEqual(check(helper, token, [1, 2, 3]), {"known": [1, 2, 3]})
+            self.assertEqual(store.asset("device-0001", key(2)).relpath, "iPhone/2026/IMG_0002.HEIC")
+            for time_deleted in range(4):
+                shutil.rmtree(disk(helper, "iPhone/2026"))
+                self.assertEqual(put(helper, token, 10 + time_deleted)[0], 201)
+                self.assertTrue(os.path.isdir(disk(helper, f"iPhone/{MONTH}")))
+                self.assertEqual(check(helper, token, [1, 2, 3]), {"known": [3]})
+                self.assertEqual(put(helper, token, 1)[0], 201)
+                self.assertEqual(put(helper, token, 2)[0], 201)
+                os.rename(disk(helper, path_of(2)), disk(helper, "iPhone/2026/IMG_0002.HEIC"))
+                self.assertEqual(check(helper, token, [1, 2, 3]), {"known": [1, 2, 3]})
+            # Counted since the folder was last deleted.
+            self.assertEqual(store.asset("device-0001", key(1)).returns, 1)
+            self.assertEqual(store.asset("device-0001", key(2)).returns, 1)
+            # A month's folder that is made for the first time changes no count.
+            with store.transaction():
+                store._db.execute("UPDATE assets SET returns = 3 WHERE key = ?", (key(1),))
+            self.assertEqual(put(helper, token, 30, created="2026-12-01T10:00:00+02:00")[0], 201)
+            os.unlink(disk(helper, path_of(1)))
+            self.assertEqual(check(helper, token, [1, 2, 3]), {"known": [2, 3], "leftOut": [1]})
+
+    def test_a_file_where_a_deleted_folder_was_is_a_deleted_folder(self):
+        # Nothing can be in a folder whose name is a file's now, or that lies
+        # under a file: the folder is gone for sure, not out of sight.
+        for place in (f"iPhone/{MONTH}", "iPhone/2026"):
+            with self.subTest(file=place), running() as helper:
+                token = helper.pair()
+                put(helper, token, 1)
+                with helper.app.store.transaction():
+                    helper.app.store._db.execute("UPDATE assets SET returns = 3")
+                shutil.rmtree(disk(helper, "iPhone/2026"))
+                os.makedirs(os.path.dirname(disk(helper, place)), exist_ok=True)
+                with open(disk(helper, place), "wb"):
+                    pass
+                self.assertEqual(presence.folder_state(disk(helper, f"iPhone/{MONTH}")), presence.MISSING)
+                self.assertEqual(check(helper, token, [1]), {"known": []})
+                self.assertEqual(helper.app.store.asset("device-0001", key(1)).returns, 0)
+
+    def test_a_folder_that_cannot_be_looked_at_changes_no_count(self):
+        # Only a folder that is surely gone says that a person deleted it.
+        with running() as helper:
+            token = helper.pair()
+            put(helper, token, 1)
+            for _ in range(3):
+                os.unlink(disk(helper, path_of(1)))
+                check(helper, token, [1])
+                put(helper, token, 1)
+            folder = disk(helper, f"iPhone/{MONTH}")
+            shutil.rmtree(folder)
+            with failing_stat([folder]):
+                self.assertEqual(check(helper, token, [1]), {"known": [], "leftOut": [1]})
+            self.assertEqual(helper.app.store.asset("device-0001", key(1)).returns, 3)
 
     def test_connecting_again_after_deleting_the_folder_sends_every_photo_again(self):
         # The owner's test, done again and again: the folder deleted on the
@@ -348,6 +518,35 @@ class HowTheDiskIsReadTests(unittest.TestCase):
                 put(helper, token, number)
             self.assertEqual(self._count_listings(helper, token, list(range(1, 9))), 1)
             self.assertEqual(self._count_listings(helper, token, list(range(1, 8))), 0)
+
+    def test_a_folder_is_looked_at_once_at_most_whatever_it_holds(self):
+        # On a slow share every look is a round trip. A folder that is listed
+        # needs no other look, and one whose files are looked up one by one
+        # is asked about once when a file is missing, not once for each file.
+        month = f"iPhone/{MONTH}"
+        for count, looks_when_gone in ((5, 1), (9, 0)):
+            with self.subTest(photos=count), running() as helper:
+                token = helper.pair()
+                numbers = list(range(1, count + 1))
+                for number in numbers:
+                    put(helper, token, number)
+                # Keeps the device's folder in place, and the search for moved files out of the count.
+                put(helper, token, 50, created="2025-06-01T10:00:00+02:00")
+                helper.app.verifier.index.refresh = lambda wait: None
+                counting, looks = count_stats(disk(helper, month))
+                with counting:
+                    self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                    self.assertEqual(looks[0], 0)
+                    # Files taken away, the folder left in place.
+                    os.unlink(disk(helper, path_of(1)))
+                    os.unlink(disk(helper, path_of(2)))
+                    self.assertEqual(check(helper, token, numbers), {"known": numbers[2:]})
+                    self.assertEqual(looks[0], 0 if count >= presence.LIST_FROM else 1)
+                    looks[0] = 0
+                    shutil.rmtree(disk(helper, "iPhone/2026"))
+                    self.assertEqual(check(helper, token, numbers), {"known": []})
+                    self.assertEqual(looks[0], looks_when_gone)
+                self.assertEqual(helper.app.store.asset("device-0001", key(1)).returns, 0)
 
     def test_a_name_spelt_another_way_on_disk_is_still_found(self):
         # A Mac writes "e" and the accent as two characters (NFD); the helper writes one.
@@ -557,6 +756,162 @@ class MovedFilesTests(unittest.TestCase):
             os.symlink(outside, disk(helper, "Linked"))
             self.assertEqual(check(helper, token, [1, 2, 3]), {"known": []})
 
+    def test_a_recycle_bin_is_not_the_upload_folder(self):
+        # With a whole Windows drive as the upload folder, a deleted folder
+        # stays in $RECYCLE.BIN with every name, size and date kept.
+        bins = ["$RECYCLE.BIN/S-1-5-21/$R8KQ2ZD", "Sorted/$Recycle.Bin", "System Volume Information",
+                "system volume information/deep", "Recycler", "RECYCLED/DC1", "#Recycle"]
+        with running() as helper:
+            token = helper.pair()
+            numbers = list(range(1, len(bins) + 2))
+            for number in numbers:
+                put(helper, token, number)
+            for number, folder in enumerate(bins, 1):
+                if not os.path.isdir(disk(helper, folder)):
+                    os.makedirs(disk(helper, folder))
+                os.rename(disk(helper, path_of(number)), disk(helper, f"{folder}/IMG_{number:04d}.HEIC"))
+            # One file sorted into a folder of the person's own, to show that the others were looked for.
+            os.makedirs(disk(helper, "Sorted/Trip"))
+            os.rename(disk(helper, path_of(numbers[-1])), disk(helper, f"Sorted/Trip/IMG_{numbers[-1]:04d}.HEIC"))
+            self.assertEqual(check(helper, token, numbers), {"known": [numbers[-1]]})
+            index = helper.app.verifier.index
+            self.assertEqual(index.lookup("IMG_0001.HEIC"), [])
+            self.assertEqual(index.lookup("IMG_0003.HEIC"), [])
+            self.assertEqual(index.lookup(f"IMG_{numbers[-1]:04d}.HEIC"), [f"Sorted/Trip/IMG_{numbers[-1]:04d}.HEIC"])
+            self.assertEqual(put(helper, token, 1)[1]["path"], path_of(1))
+
+    def test_a_record_that_points_into_a_recycle_bin_is_answered_missing(self):
+        # What helper 1.0.2 may have left: the device's folder was deleted on
+        # Windows, and every record was pointed at the file in the recycle bin.
+        binned = "$RECYCLE.BIN/S-1-5-21/$R8KQ2ZD"
+        data = b"a photo both phones hold"
+        for count in (2, 9):
+            with self.subTest(photos=count), running() as helper:
+                token = helper.pair()
+                other = helper.pair("device-0002", folder="Alex")
+                store = helper.app.store
+                numbers = list(range(1, count + 1))
+                put(helper, token, 1, data)
+                for number in numbers[1:]:
+                    put(helper, token, number)
+                os.makedirs(disk(helper, "$RECYCLE.BIN/S-1-5-21"))
+                os.rename(disk(helper, "iPhone"), disk(helper, binned))
+                for number in numbers:
+                    self.assertTrue(store.repoint(store.asset("device-0001", key(number)),
+                                                  path_of(number, binned)))
+                # One of them was left out before its folder was deleted.
+                with store.transaction():
+                    store._db.execute("UPDATE assets SET returns = 3 WHERE key = ?", (key(2),))
+                self.assertTrue(os.path.isfile(disk(helper, path_of(1, binned))))
+                self.assertEqual(asset_count(helper, token), count)
+                self.assertEqual(helper.app.verifier.state(path_of(1, binned)), presence.MISSING)
+                # A photo in the recycle bin is no twin: neither for a check nor for an upload.
+                sha = hashlib.sha256(data).hexdigest()
+                self.assertEqual(check(helper, other, [50], {50: sha}), {"known": []})
+                status, body = put(helper, other, 50, data)
+                self.assertEqual((status, body["status"], body["path"]), (201, "stored", path_of(50, "Alex")))
+                shutil.rmtree(disk(helper, "Alex"))
+                self.assertEqual(check(helper, token, numbers), {"known": []})
+                self.assertEqual(asset_count(helper, token), 0)
+                self.assertEqual(store.asset("device-0001", key(2)).returns, 0)
+                # Sent again, each photo gets a real path, and what is in the recycle bin stays there.
+                for number in numbers:
+                    status, body = put(helper, token, number, data if number == 1 else None)
+                    self.assertEqual((status, body["status"], body["path"]), (201, "stored", path_of(number)))
+                self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                self.assertEqual(store.asset("device-0001", key(1)).relpath, path_of(1))
+                self.assertTrue(os.path.isfile(disk(helper, path_of(1, binned))))
+
+    def test_a_record_that_points_into_a_recycle_bin_further_down_is_answered_missing(self):
+        # A NAS keeps a recycle bin in each shared folder, and a share may be a folder of the upload folder.
+        binned = "Sorted/#recycle"
+        for count in (2, 9):
+            with self.subTest(photos=count), running() as helper:
+                token = helper.pair()
+                store = helper.app.store
+                numbers = list(range(1, count + 1))
+                for number in numbers:
+                    put(helper, token, number)
+                os.makedirs(disk(helper, "Sorted"))
+                os.rename(disk(helper, "iPhone"), disk(helper, binned))
+                for number in numbers:
+                    self.assertTrue(store.repoint(store.asset("device-0001", key(number)), path_of(number, binned)))
+                self.assertTrue(os.path.isfile(disk(helper, path_of(1, binned))))
+                self.assertEqual(helper.app.verifier.state(path_of(1, binned)), presence.MISSING)
+                self.assertEqual(check(helper, token, numbers), {"known": []})
+                self.assertEqual(asset_count(helper, token), 0)
+                self.assertEqual(put(helper, token, 1)[1]["path"], path_of(1))
+
+    def test_a_phone_that_already_has_a_system_folders_name_keeps_its_photos(self):
+        # Helpers before 1.0.3 gave a phone the folder it asked for, whatever
+        # the name. The photos in it are really there, and must not be sent
+        # again on every run.
+        with running() as helper:
+            token = helper.pair()
+            other = helper.pair("device-0002", folder="Alex")
+            store = helper.app.store
+            with store.transaction():
+                store._db.execute("UPDATE devices SET folder = 'Recycled' WHERE id = 'device-0001'")
+                store._db.execute("UPDATE device_folders SET folder = 'Recycled' WHERE device_id = 'device-0001'")
+            data = b"a photo both phones hold"
+            for status, answer in ((201, "stored"), (200, "duplicate")):
+                self.assertEqual(put(helper, token, 1, data)[1], {"status": answer, "path": path_of(1, "Recycled"),
+                                                                  "bytes": len(data)})
+                self.assertEqual(check(helper, token, [1]), {"known": [1]})
+            self.assertEqual(helper.app.verifier.state(path_of(1, "Recycled")), presence.PRESENT)
+            self.assertEqual(asset_count(helper, token), 1)
+            # The other phone's same photo is that file.
+            self.assertEqual(check(helper, other, [50], {50: hashlib.sha256(data).hexdigest()}), {"known": [50]})
+            # A deleted file there is missing as anywhere, and the folder's name restarts no count.
+            with store.transaction():
+                store._db.execute("UPDATE assets SET returns = 3 WHERE device_id = 'device-0001'")
+            os.unlink(disk(helper, path_of(1, "Recycled")))
+            self.assertEqual(check(helper, token, [1]), {"known": [], "leftOut": [1]})
+            # Only the folder the layout made has that right. A recycle bin
+            # in it, or the same name in another place or another case, has not.
+            put(helper, token, 2)
+            for folder in ("Recycled/$RECYCLE.BIN", "Sorted/Recycled", "RECYCLED"):
+                os.makedirs(disk(helper, folder), exist_ok=True)
+                moved = f"{folder}/IMG_0002.HEIC"
+                os.rename(disk(helper, store.asset("device-0001", key(2)).relpath), disk(helper, moved))
+                self.assertTrue(store.repoint(store.asset("device-0001", key(2)), moved))
+                self.assertEqual(helper.app.verifier.state(moved), presence.MISSING, folder)
+                self.assertEqual(check(helper, token, [2]), {"known": []}, folder)
+
+    def test_a_layout_that_names_a_system_folder_still_counts_its_photos(self):
+        for template, path in (("Recycled/{device}/{year}", "Recycled/iPhone/2026/IMG_0001.HEIC"),
+                               ("{device}/Recycled/{year}", "iPhone/Recycled/2026/IMG_0001.HEIC"),
+                               ("{year}/lost+found/{device}", "2026/lost+found/iPhone/IMG_0001.HEIC")):
+            with self.subTest(template=template), running(PATH_TEMPLATE=template) as helper:
+                token = helper.pair()
+                for status, answer in ((201, "stored"), (200, "duplicate")):
+                    self.assertEqual(put(helper, token, 1)[1]["status"], answer)
+                    self.assertEqual(put(helper, token, 1)[1]["path"], path)
+                    self.assertEqual(check(helper, token, [1]), {"known": [1]})
+
+    def test_a_device_folder_is_never_followed_into_a_system_folder(self):
+        outside = ["$Recycle.Bin", "system volume information", "Recycler", "RECYCLED", "#Recycle", "@eadir",
+                   "Lost+Found", ".hidden"]
+        with running() as helper:
+            token = helper.pair()
+            for number in range(1, 4):
+                put(helper, token, number)
+            os.rename(disk(helper, "iPhone"), disk(helper, outside[0]))
+            for name in outside[1:] + ["Holiday"]:
+                os.makedirs(disk(helper, name))
+            device = helper.app.store.device("device-0001")
+            self.assertEqual(helper.app.verifier._siblings("", device), ["Holiday"])
+            # The folder that holds every file of the device is the recycle bin: not followed, not searched.
+            self.assertEqual(check(helper, token, [1, 2, 3]), {"known": []})
+            self.assertEqual(helper.request("GET", "/api/v1/status", token=token)[1]["device"]["folder"], "iPhone")
+            self.assertEqual(put(helper, token, 1)[1]["path"], path_of(1))
+
+    def test_a_phone_is_never_given_a_system_folder_as_its_own(self):
+        with running() as helper:
+            for number, name in enumerate(("$RECYCLE.BIN", "recycled", "System Volume Information", "@eaDir")):
+                _, folder = pair(helper, f"device-000{number}", folder=name)
+                self.assertEqual(folder, "iPhone" if number == 0 else f"iPhone {number + 1}")
+
     def test_the_index_holds_at_most_so_many_names(self):
         with running() as helper:
             token = helper.pair()
@@ -578,6 +933,9 @@ class MovedFilesTests(unittest.TestCase):
             for number in numbers:
                 put(helper, token, number)
             folder = disk(helper, "iPhone")
+            # A folder that changed a moment ago is listed again sooner.
+            hour_ago = time.time() - 3600
+            os.utime(folder, (hour_ago, hour_ago))
             listed = []
             real = os.scandir
 
@@ -587,12 +945,87 @@ class MovedFilesTests(unittest.TestCase):
                 return real(path, *arguments)
 
             with mock.patch.object(presence, "BIG_FOLDER", 10), mock.patch.object(os, "scandir", spy):
-                for _ in range(3):
+                # The first listing finds the folder that large. From the second
+                # on, its time is read first and the listing is kept.
+                for _ in range(4):
                     self.assertEqual(check(helper, token, numbers), {"known": numbers})
-                self.assertEqual(len(listed), 1)
+                self.assertEqual(len(listed), 2)
                 helper.app.verifier.clock = lambda: time.monotonic() + 61
                 self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                self.assertEqual(len(listed), 3)
+
+    def test_a_kept_listing_is_dropped_when_its_folder_changes(self):
+        with running(PATH_TEMPLATE="{device}") as helper:
+            token = helper.pair()
+            numbers = list(range(1, 13))
+            for number in numbers:
+                put(helper, token, number)
+            folder = disk(helper, "iPhone")
+            # Not changed a moment ago, so its listing is kept for the full minute.
+            hour_ago = time.time() - 3600
+            os.utime(folder, (hour_ago, hour_ago))
+            # The search for moved files lists folders too, and is not what is counted here.
+            helper.app.verifier.index.refresh = lambda wait: None
+            listed = []
+            real = os.scandir
+
+            def spy(path=".", *arguments):
+                if path == folder:
+                    listed.append(path)
+                return real(path, *arguments)
+
+            with mock.patch.object(presence, "BIG_FOLDER", 10), mock.patch.object(os, "scandir", spy):
+                # Listed once to find it that large, and once more to keep the listing.
+                for _ in range(3):
+                    self.assertEqual(check(helper, token, numbers), {"known": numbers})
                 self.assertEqual(len(listed), 2)
+                self.assertIn(folder, helper.app.verifier._listings)
+                # One file deleted: the folder's time changes, and the kept listing is not believed.
+                os.unlink(disk(helper, "iPhone/IMG_0003.HEIC"))
+                self.assertEqual(check(helper, token, numbers), {"known": [n for n in numbers if n != 3]})
+                self.assertEqual(len(listed), 3)
+                self.assertEqual(put(helper, token, 3)[0], 201)
+                os.utime(folder, (hour_ago, hour_ago))
+                self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                self.assertEqual(len(listed), 4)
+                # A folder that cannot be looked at: listing it again says what is the matter.
+                with failing_stat([folder]):
+                    self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                self.assertEqual(len(listed), 5)
+                # A listing is kept again, so that the last step means something.
+                os.utime(folder, (hour_ago, hour_ago))
+                self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                self.assertEqual(len(listed), 6)
+                self.assertIn(folder, helper.app.verifier._listings)
+                # The whole folder deleted: answered at once, not a minute later.
+                shutil.rmtree(folder)
+                self.assertEqual(check(helper, token, numbers), {"known": []})
+                self.assertEqual(asset_count(helper, token), 0)
+
+    def test_a_listing_of_a_folder_that_just_changed_is_kept_only_a_moment(self):
+        # A share that keeps times to two seconds would not show a second change.
+        with running(PATH_TEMPLATE="{device}") as helper:
+            token = helper.pair()
+            numbers = list(range(1, 13))
+            for number in numbers:
+                put(helper, token, number)
+            folder = disk(helper, "iPhone")
+            verifier = helper.app.verifier
+            with mock.patch.object(presence, "BIG_FOLDER", 10):
+                # The first listing only finds the folder that large.
+                self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                self.assertNotIn(folder, verifier._listings)
+                os.utime(folder)
+                self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                kept = verifier._listings[folder]
+                self.assertLessEqual(kept.expires - verifier.clock(), presence.MTIME_SLACK)
+                hour_ago = time.time() - 3600
+                os.utime(folder, (hour_ago, hour_ago))
+                self.assertEqual(check(helper, token, numbers), {"known": numbers})
+                kept = verifier._listings[folder]
+                self.assertGreater(kept.expires - verifier.clock(), presence.BIG_FOLDER_SECONDS - 5)
 
     def test_looking_for_moved_files_stops_when_its_time_is_up(self):
         with running() as helper:
@@ -873,7 +1306,10 @@ class StartGuardTests(unittest.TestCase):
 
     def test_an_empty_upload_folder_stops_a_helper_that_stored_photos_there(self):
         self._stored_before()
-        for contents in ((), (".DS_Store", "@eaDir", "lost+found", "#recycle")):
+        # The last ones: a new or another Windows drive, which holds these from the first day.
+        for contents in ((), (".DS_Store", "@eaDir", "lost+found", "#recycle"),
+                         ("$RECYCLE.BIN", "System Volume Information"), ("$Recycle.Bin", "RECYCLER", "Recycled")):
+            shutil.rmtree(self.photos, ignore_errors=True)
             os.makedirs(self.photos, exist_ok=True)
             for name in contents:
                 os.makedirs(os.path.join(self.photos, name), exist_ok=True)
@@ -908,6 +1344,57 @@ class StartGuardTests(unittest.TestCase):
         os.makedirs(os.path.join(self.photos, "iPhone"))
         shutil.rmtree(os.path.join(self.photos, ".phlix-upload-tmp"))
         self.assertTrue(self._starts())
+
+    def test_a_running_helper_makes_the_hidden_folder_again(self):
+        # On Windows the hidden folder is in plain sight, and a person who
+        # deletes everything deletes it too. Docker's health check brings it
+        # back, so that the helper still starts the next time.
+        with running(UPLOAD_DIR=self.photos, CONFIG_DIR=self.config.config_dir) as helper:
+            token = helper.pair()
+            put(helper, token, 1)
+            for name in os.listdir(self.photos):
+                shutil.rmtree(os.path.join(self.photos, name))
+            self.assertEqual(main_module.emptied_upload_folder(self.config, helper.app.store), 1)
+            # The health check answers whether or not the folder could be made.
+            tried = threading.Event()
+
+            def refused(path, *arguments, **keywords):
+                tried.set()
+                raise PermissionError(errno.EACCES, "Permission denied", path)
+
+            with mock.patch.object(os, "mkdir", refused):
+                self.assertEqual(helper.request("GET", "/healthz")[:2], (200, b"ok\n"))
+                self.assertTrue(tried.wait(5))
+            self.assertEqual(os.listdir(self.photos), [])
+            self.assertEqual(helper.request("GET", "/healthz")[:2], (200, b"ok\n"))
+            self.assertTrue(wait_for(lambda: os.listdir(self.photos) == [".phlix-upload-tmp"]))
+            self.assertEqual(main_module.emptied_upload_folder(self.config, helper.app.store), 0)
+        self.assertTrue(self._starts())
+
+    def test_the_health_check_never_makes_the_upload_folder_itself(self):
+        # The upload folder is gone: a disk that is not mounted, say. A folder
+        # made in its place would let the next start run on the wrong disk.
+        with running(UPLOAD_DIR=self.photos, CONFIG_DIR=self.config.config_dir) as helper:
+            token = helper.pair()
+            put(helper, token, 1)
+            shutil.rmtree(self.photos)
+            looked = threading.Event()
+            real = os.path.isdir
+
+            def spy(path):
+                found = real(path)
+                if os.fspath(path) == helper.app.storage.temp_dir:
+                    looked.set()
+                return found
+
+            with mock.patch.object(os.path, "isdir", spy):
+                self.assertEqual(helper.request("GET", "/healthz")[:2], (200, b"ok\n"))
+                self.assertTrue(looked.wait(5))
+            helper.app.storage.keep_temp_dir()
+            self.assertFalse(os.path.exists(self.photos))
+            self.assertEqual(main_module.emptied_upload_folder(self.config, helper.app.store), 1)
+        with self.assertRaises(main_module.StartRefused):
+            main_module.build_app(self.config)
 
     def test_files_already_found_missing_do_not_stop_it(self):
         self._stored_before()

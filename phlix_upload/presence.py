@@ -14,6 +14,22 @@ about, the helper looks at the path it recorded:
   cannot tell, and the photo counts as there, so that a hiccup of a share
   never turns into a re-upload of everything.
 
+A hidden folder, a recycle bin and the other folders a system keeps for
+itself (storage.is_outside_name) are not the upload folder. Nothing is looked
+for in them, and a record that points into one is answered missing whatever
+is there: Windows keeps a deleted folder in `$RECYCLE.BIN` with every name,
+size and date, and helper 1.0.2 took those files for the photos, moved. Only
+a folder that the helper's own layout made is part of the upload folder
+under such a name (storage.layout_names): helpers before 1.0.3 let a phone
+have "Recycled" as its folder, and its photos are really there.
+
+A photo that keeps leaving soon after it is stored is left out in the end
+(store.LEAVE_OUT_AFTER): some program on the server takes new files away.
+Such a program leaves the folders. When the folder that held a file is gone
+as well, a person deleted it, and that never leads to leaving a photo out.
+(A program that also removes the folders it emptied is taken for a person,
+and its photos are sent again every time. The README says so.)
+
 Only the answers to a phone are lenient like that. When the bytes of an
 upload are in hand, `Verifier.state` must say PRESENT before the bytes are
 thrown away (server.py), so nothing is dropped on a guess.
@@ -32,7 +48,16 @@ import time
 import unicodedata
 from dataclasses import dataclass, field
 
-from .storage import StorageError, clean_folder_name, is_allowed_extension, parse_created, path_component
+from .storage import (
+    StorageError,
+    clean_folder_name,
+    is_allowed_extension,
+    is_outside_name,
+    is_outside_path,
+    layout_names,
+    parse_created,
+    path_component,
+)
 from .store import LEAVE_OUT_AFTER, Asset, Device, Store
 
 log = logging.getLogger("phlix.presence")
@@ -47,11 +72,10 @@ _GONE = frozenset({errno.ENOENT, errno.ENOTDIR})
 #: listed once; for fewer, each file is looked up on its own.
 LIST_FROM = 8
 #: A listing of a folder with more entries than this (a flat layout) is
-#: used again for this many seconds.
+#: used again for this many seconds, as long as the folder's modification
+#: time stays what it was when the listing was made.
 BIG_FOLDER = 10_000
 BIG_FOLDER_SECONDS = 60.0
-#: Folders that NAS systems keep for themselves, inside any shared folder.
-SYSTEM_FOLDERS = frozenset({"lost+found", "@eaDir", "#recycle", "#snapshot", "@Recycle", "@Recently-Snapshot"})
 
 #: Seconds a check waits for the index of names to be ready.
 INDEX_WAIT_SECONDS = 3.0
@@ -148,6 +172,9 @@ class Looked:
     #: disk, say): key -> the path as it is on disk.
     respelt: dict[str, str] = field(default_factory=dict)
     errors: list[OSError] = field(default_factory=list)
+    #: Folders of missing files that are themselves gone, or are not part of
+    #: the upload folder: a person deleted them.
+    gone_folders: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -155,6 +182,8 @@ class _Listing:
     exact: dict[str, bool]
     by_nfc: dict[str, str]
     expires: float
+    #: The folder's modification time, read before it was listed.
+    mtime_ns: int
 
 
 @dataclass
@@ -171,8 +200,8 @@ class NameIndex:
     """The file names in the whole upload folder, to find files that were
     moved. Built in the background the first time a check meets a missing
     file, and brought up to date at most once a minute by listing again only
-    the folders that changed. Hidden folders, NAS system folders and
-    symbolic links are left out."""
+    the folders that changed. Hidden folders, system folders (recycle bins
+    among them) and symbolic links are left out."""
 
     REFRESH_SECONDS = 60.0
     MAX_NAMES = 500_000
@@ -266,7 +295,7 @@ class NameIndex:
             with os.scandir(path) as entries:
                 for entry in entries:
                     name = entry.name
-                    if name.startswith(".") or name in SYSTEM_FOLDERS:
+                    if is_outside_name(name):
                         continue
                     try:
                         if entry.is_symlink():
@@ -317,6 +346,9 @@ class Verifier:
                                lambda name: is_allowed_extension(name, config.extra_extensions))
         self.clock = time.monotonic
         self._listings: dict[str, _Listing] = {}
+        #: Folders found to hold more than BIG_FOLDER entries. Only for these
+        #: is the modification time read before they are listed.
+        self._big: set[str] = set()
         self._listings_lock = threading.Lock()
         self._misses: dict[tuple[str, str], int] = {}
         self._warned_at: float | None = None
@@ -325,12 +357,26 @@ class Verifier:
     # -- one path ---------------------------------------------------------------
 
     def state(self, relpath: str) -> str:
-        """PRESENT, MISSING or UNKNOWN for one recorded path."""
+        """PRESENT, MISSING or UNKNOWN for one recorded path. A path into a
+        recycle bin or another folder that is not part of the upload folder
+        is MISSING whatever is there: helper 1.0.2 may have recorded one."""
+        if self._outside(relpath.rpartition("/")[0]):
+            return MISSING
         try:
             path = self.storage.absolute(relpath)
         except StorageError:
             return MISSING
         return state_of(path)[0]
+
+    def _outside(self, folder: str) -> bool:
+        """Whether a recorded folder is or lies in a folder that is not part
+        of the upload folder. Which names the layout itself writes is asked
+        only for a path that has a system folder's name in it, so nearly
+        never."""
+        if not is_outside_path(folder):
+            return False
+        own = layout_names(self.config.path_template, [name for _, name in self.store.all_folders()])
+        return is_outside_path(folder, own)
 
     def stored_twin(self, sha256: str, skip: Asset | None = None) -> Asset | None:
         """A record of this exact content whose file is surely there now."""
@@ -347,12 +393,20 @@ class Verifier:
         """The state of each record's file. A folder with LIST_FROM or more
         of the records is listed once; each name it lacks is still looked up
         on its own, which finds a name spelt in another case on a share that
-        ignores case."""
+        ignores case. A record that points into a folder that is not part of
+        the upload folder is MISSING without a look. `gone_folders` gets the
+        folders of missing files that are gone themselves, with one look at
+        each, and none at a folder that was listed: that one is there."""
         looked = Looked()
         by_folder: dict[str, list[Asset]] = {}
         for record in records:
             by_folder.setdefault(record.relpath.rpartition("/")[0], []).append(record)
         for folder, group in by_folder.items():
+            if self._outside(folder):
+                # In a recycle bin, say: a person deleted the photo.
+                looked.states.update((record.key, MISSING) for record in group)
+                looked.gone_folders.add(folder)
+                continue
             listing = self._listing(folder, looked) if len(group) >= LIST_FROM else None
             for record in group:
                 name = record.relpath.rpartition("/")[2]
@@ -377,6 +431,16 @@ class Verifier:
                 looked.states[record.key] = state
                 if state == UNKNOWN and error is not None:
                     looked.errors.append(error)
+            # The upload folder itself is not a folder a person deletes to
+            # start over: only folders inside it are asked about. A folder
+            # that was listed has answered already: there, gone, or unknown.
+            if listing is None and folder and any(
+                    looked.states[record.key] == MISSING for record in group):
+                try:
+                    if folder_state(self.storage.absolute(folder)) == MISSING:
+                        looked.gone_folders.add(folder)
+                except StorageError:
+                    pass
         return looked
 
     def _listing(self, folder: str, looked: Looked):
@@ -388,10 +452,28 @@ class Verifier:
         now = self.clock()
         with self._listings_lock:
             kept = self._listings.get(path)
-            if kept is not None and kept.expires > now:
+            big = path in self._big
+        # Read before the folder is listed, so that a change made while it is
+        # listed shows as a newer time at the next look. Only for a folder
+        # whose listing is kept or will be: a look that costs every other
+        # folder nothing.
+        info = None
+        if kept is not None or big:
+            try:
+                info = os.stat(path)
+            except OSError:
+                # Gone, or out of sight: listing it below says which.
+                info = None
+        if kept is not None:
+            # A kept listing answers only for the folder as it was listed.
+            # One file deleted from it, or the whole folder, changes the time.
+            if info is not None and kept.expires > now and kept.mtime_ns == info.st_mtime_ns:
                 return kept
-            self._listings.pop(path, None)
+            with self._listings_lock:
+                if self._listings.get(path) is kept:
+                    del self._listings[path]
         exact: dict[str, bool] = {}
+        listed_at = time.time()
         try:
             with os.scandir(path) as entries:
                 for entry in entries:
@@ -401,21 +483,39 @@ class Verifier:
                         exact[entry.name] = False
         except OSError as error:
             if error.errno in _GONE:
+                with self._listings_lock:
+                    self._big.discard(path)
+                if folder:
+                    looked.gone_folders.add(folder)
                 return MISSING
             looked.errors.append(error)
             return UNKNOWN
-        listing = _Listing(exact, {unicodedata.normalize("NFC", name): name for name in exact},
-                           now + BIG_FOLDER_SECONDS)
-        if len(exact) > BIG_FOLDER:
+        by_nfc = {unicodedata.normalize("NFC", name): name for name in exact}
+        if len(exact) <= BIG_FOLDER or info is None:
+            # Not kept. A folder found big only now had no time read before
+            # it was listed: it is noted, and its next listing is kept.
             with self._listings_lock:
-                self._listings[path] = listing
+                if len(exact) > BIG_FOLDER:
+                    self._big.add(path)
+                else:
+                    self._big.discard(path)
+            return _Listing(exact, by_nfc, now, 0)
+        # A folder that changed moments before it was listed may change again
+        # within the same tick of a coarse clock (FAT, some shares), and its
+        # time would not show it: such a listing is kept no longer than a tick.
+        racy = abs(listed_at - info.st_mtime) < MTIME_SLACK
+        listing = _Listing(exact, by_nfc, now + (MTIME_SLACK if racy else BIG_FOLDER_SECONDS), info.st_mtime_ns)
+        with self._listings_lock:
+            self._listings[path] = listing
         return listing
 
     def check(self, device: Device, keys: list[str], hashes: dict[str, str]) -> tuple[set[str], set[str]]:
         """(known, left out) among `keys`. Known: the photo's file is in the
         upload folder now, as far as the helper can tell. Left out: missing
         again after it came back LEAVE_OUT_AFTER times, each time soon after
-        it was stored."""
+        it was stored. Never left out: a photo whose folder is gone as well.
+        A person deleted that folder, so the photo is only missing, and its
+        count of returns starts again."""
         records = self.store.records(device.id, keys)
         looked = self.look(records.values())
         if MISSING in looked.states.values():
@@ -483,11 +583,15 @@ class Verifier:
                         known.add(key)
                     else:
                         changed.append(key)
-                elif self.store.flag_missing(record, now):
-                    if record.returns >= LEAVE_OUT_AFTER:
-                        left_out.add(key)
                 else:
-                    changed.append(key)
+                    # The count starts again in the same write that compares
+                    # it with the record as read, so that an upload recorded
+                    # meanwhile is still noticed.
+                    restart = record.relpath.rpartition("/")[0] in looked.gone_folders
+                    if not self.store.flag_missing(record, now, restart=restart):
+                        changed.append(key)
+                    elif record.returns >= LEAVE_OUT_AFTER and not restart:
+                        left_out.add(key)
             for key, twin in twins.items():
                 if key in records:
                     continue
@@ -495,6 +599,13 @@ class Verifier:
                     known.add(key)
                 else:
                     changed.append(key)
+            # The other photos that were in a deleted folder, of any device,
+            # start their count again too. The phone asks about its photos in
+            # several requests, and the first photos sent again make the
+            # folder again before the others are asked about. After the
+            # writes above, which compare the count as it was read.
+            for folder in looked.gone_folders:
+                self.store.restart_returns_under(folder + "/")
         # A record that changed while the check looked: an upload or a move
         # was recorded meanwhile. Its own path decides.
         for key in changed:
@@ -575,6 +686,30 @@ class Verifier:
         store has it now."""
         return self._follow(device)[0]
 
+    def before_folder_is_made(self, folder: str) -> None:
+        """Call with `place_lock` held, before an upload makes `folder`
+        (relative to the upload folder). If it is gone, a person deleted it,
+        perhaps while the phone was still sending. The upload makes it
+        again, and the next check would find the folder there and take its
+        other photos for files that a program took away. So the count of
+        returns starts again here, for every record under the highest folder
+        that is gone: a year's folder takes its months with it. A folder
+        that was never there has no records, and nothing changes."""
+        if not folder:
+            return
+        try:
+            if folder_state(self.storage.absolute(folder)) != MISSING:
+                return
+            top = folder
+            while "/" in top:
+                parent = top.rpartition("/")[0]
+                if folder_state(self.storage.absolute(parent)) != MISSING:
+                    break
+                top = parent
+        except StorageError:
+            return
+        self.store.restart_returns_under(top + "/")
+
     def _follow(self, device: Device) -> tuple[Device, bool]:
         """follow_folder, and whether the count of returns of the device's
         photos started again because its whole folder is gone."""
@@ -618,7 +753,8 @@ class Verifier:
     def _siblings(self, parent: str, device: Device) -> list[str]:
         """Folders next to the device's own that it could have been renamed
         to, the most recently changed first. Never another device's folder,
-        present or past."""
+        present or past, and never a recycle bin or another folder that is
+        not part of the upload folder."""
         taken = self.store.folders_of_others(device.id)
         found: list[tuple[float, str]] = []
         try:
@@ -626,7 +762,7 @@ class Verifier:
             with os.scandir(path) as entries:
                 for entry in entries:
                     name = entry.name
-                    if name.startswith(".") or name in SYSTEM_FOLDERS or name.casefold() in taken:
+                    if is_outside_name(name) or name.casefold() in taken:
                         continue
                     if self._misses.get((device.id, name), 0) >= MAX_MISSES:
                         continue

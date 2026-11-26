@@ -145,6 +145,13 @@ class Store:
                 self._db.execute("ALTER TABLE assets ADD COLUMN returns INTEGER NOT NULL DEFAULT 0")
             self._db.execute("INSERT OR IGNORE INTO device_folders (device_id, folder, since) "
                              "SELECT id, folder, paired_at FROM devices")
+            if self.get_meta("returns_restarted") is None:
+                # Once, when a 1.0.3 helper first opens the file. Helper 1.0.2
+                # counted a folder that a person deleted like a file that a
+                # program took away, and left photos out for it. Those counts
+                # cannot be told apart now, so every count starts again.
+                self._db.execute("UPDATE assets SET returns = 0 WHERE returns > 0")
+                self.set_meta("returns_restarted", "1.0.3")
             version = self.get_meta("schema_version")
             if version is None or int(version) < SCHEMA_VERSION:
                 self.set_meta("schema_version", str(SCHEMA_VERSION))
@@ -453,14 +460,17 @@ class Store:
     # read, so that an upload or a move recorded while the check looked at
     # the disk is never undone by it.
 
-    def flag_missing(self, asset: Asset, when: int) -> bool:
-        """Note that the file of `asset` was not found. Returns False if the
-        record changed since it was read."""
+    def flag_missing(self, asset: Asset, when: int, restart: bool = False) -> bool:
+        """Note that the file of `asset` was not found. With `restart`, its
+        count of returns starts again as well: the folder that held the file
+        is gone, and that is a person's doing. Returns False if the record
+        changed since it was read."""
         with self._lock:
             cursor = self._db.execute(
-                "UPDATE assets SET missing_at = COALESCE(missing_at, ?) WHERE device_id = ? AND key = ? "
+                "UPDATE assets SET missing_at = COALESCE(missing_at, ?), "
+                "returns = CASE WHEN ? THEN 0 ELSE returns END WHERE device_id = ? AND key = ? "
                 "AND relpath = ? AND stored_at = ? AND returns = ?",
-                (when, asset.device_id, asset.key, asset.relpath, asset.stored_at, asset.returns),
+                (when, int(restart), asset.device_id, asset.key, asset.relpath, asset.stored_at, asset.returns),
             )
         return cursor.rowcount > 0
 
@@ -492,6 +502,19 @@ class Store:
             cursor = self._db.execute(
                 "UPDATE assets SET returns = 0 WHERE device_id = ? AND returns > 0 AND substr(relpath, 1, ?) = ?",
                 (device_id, len(prefix), prefix),
+            )
+        return cursor.rowcount
+
+    def restart_returns_under(self, prefix: str) -> int:
+        """Start the count of returns again for every record, of any device,
+        under `prefix` (which ends with a slash): that folder was deleted, by
+        a person. Returns the number of records changed."""
+        with self._lock:
+            # The range lets the index on relpath find the rows, as in `relocate`.
+            cursor = self._db.execute(
+                "UPDATE assets SET returns = 0 WHERE returns > 0 AND relpath >= ? AND relpath < ? "
+                "AND substr(relpath, 1, ?) = ?",
+                (prefix, prefix[:-1] + "0", len(prefix), prefix),
             )
         return cursor.rowcount
 

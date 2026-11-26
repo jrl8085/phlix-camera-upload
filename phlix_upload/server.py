@@ -39,13 +39,17 @@ from .plex import PlexLink
 from .presence import MISSING, PRESENT, Verifier
 from .statuspage import render_status_page
 from .storage import (
+    GONE,
+    GONE_MESSAGE,
     Storage,
     StorageError,
     clean_filename,
     clean_folder_name,
     is_allowed_extension,
     parse_created,
+    relative_folder,
     storage_error_from,
+    trouble_of,
 )
 from .store import LEAVE_OUT_WINDOW, Device, Store
 
@@ -402,7 +406,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # -- handlers -----------------------------------------------------------
 
     def _healthz(self) -> None:
+        # Answered first, and without a look at the disk: a share that does
+        # not answer must not make Docker call a running helper unhealthy.
         self._send(200, b"ok\n", "text/plain; charset=utf-8")
+        # Docker asks every 30 seconds. A person who deleted everything in the
+        # upload folder deleted the hidden temporary folder too, and the next
+        # start looks for it to know that the folder is the right one: it is
+        # made again here, after the answer, by one request at a time.
+        self.app.storage.keep_temp_dir()
 
     def _status_page(self) -> None:
         self._send(200, render_status_page(self.app).encode("utf-8"), "text/html; charset=utf-8",
@@ -681,9 +692,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             temp_path = app.storage.new_temp_path()
             handle = open(temp_path, "wb")
         except OSError as error:
-            log.error("Cannot write to the upload folder: %s", error)
-            raise self._refuse_upload(507, "not_writable",
-                                      "The helper is not allowed to write to the upload folder", length) from None
+            # The same error code either way, because the app knows it. The
+            # words differ: another owner or other permissions do not bring
+            # back a folder that is gone.
+            if trouble_of(error) == GONE:
+                log.error("Refused an upload: the upload folder %s is gone, or it was replaced while the helper "
+                          "was running. Restart the helper: it then uses the folder that is there now.",
+                          app.config.upload_dir)
+                message = GONE_MESSAGE
+            else:
+                log.error("Cannot write to the upload folder: %s", error)
+                message = "The helper is not allowed to write to the upload folder"
+            raise self._refuse_upload(507, "not_writable", message, length) from None
         try:
             with handle:
                 while remaining > 0:
@@ -749,6 +769,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             app.store.record_asset(device.id, key, sha256, twin.relpath, size, kind, created_text or None,
                                    returned=returned)
             return twin.relpath, False, self._stored_by(device, twin.relpath, sha256)
+        # A folder that is gone was deleted by a person. This upload makes it
+        # again, and the next check would no longer see that it was gone.
+        app.verifier.before_folder_is_made(relative_folder(app.storage.path_template, device.folder, created))
         # A name whose file is gone may still be in a record of another
         # photo: a new file there would make that photo count as backed up.
         relpath, stored = app.storage.place(temp_path, device.folder, filename, created, sha256, size,
@@ -770,14 +793,17 @@ def health_report(app: App) -> dict:
     device or file name."""
     config = app.config
     free, total = app.storage.disk_usage()
-    writable = app.storage.is_writable()
+    trouble = app.storage.write_trouble()
+    writable = trouble is None
     identity = app.plex.identity()
     files, size = app.store.totals()
     enough_space = free >= config.min_free_bytes
     return {
         "ok": writable and enough_space,
         "version": __version__,
-        "uploadFolder": {"writable": writable, "freeBytes": free, "totalBytes": total,
+        # gone: not writable because the folder itself is no longer there, so
+        # that `doctor` advises a restart and not other permissions.
+        "uploadFolder": {"writable": writable, "gone": trouble == GONE, "freeBytes": free, "totalBytes": total,
                          "minFreeBytes": config.min_free_bytes, "enoughSpace": enough_space},
         "plex": {"found": identity is not None,
                  "version": identity.version if identity else None,

@@ -1,5 +1,5 @@
 {
   "name": "phlix-camera-upload",
   "description": "Sets up the Phlix Camera Upload helper (a Docker container next to Plex Media Server) on your server, checks it, and fixes it when something is wrong. Camera Upload is a beta feature of the Phlix app.",
-  "version": "1.0.2"
+  "version": "1.0.3"
 }

@@ -31,9 +31,8 @@ from . import __version__
 from . import config as config_module
 from .pairing import AttemptLimiter, new_code
 from .plex import PlexLink
-from .presence import SYSTEM_FOLDERS
 from .server import App, Server
-from .storage import Storage
+from .storage import Storage, is_outside_name
 from .store import Store
 from .tlsutil import TLSError, ensure_certificate, fingerprint, server_context
 
@@ -129,7 +128,11 @@ def emptied_upload_folder(config: config_module.Config, store: Store) -> int:
     it does not start; Docker's restart policy tries again until the share is
     there. The hidden folder `.phlix-upload-tmp` says the folder is the right
     one: the helper makes it on every start (1.0.1 did too), and a person who
-    empties the folder on purpose makes it to let the helper start.
+    empties the folder on purpose makes it to let the helper start. A running
+    helper makes it again when it is deleted with everything else (on an
+    upload, a status call and Docker's health check), so that person is
+    seldom asked. What a system keeps for itself in every folder or drive, a
+    recycle bin say, counts as nothing: it is there on the wrong disk too.
     """
     stored = store.present_count()
     if not stored:
@@ -143,7 +146,9 @@ def emptied_upload_folder(config: config_module.Config, store: Store) -> int:
         return 0
     if os.path.basename(config.temp_dir) in names:
         return 0
-    if all(name.startswith(".") or name in SYSTEM_FOLDERS for name in names):
+    # What a system keeps for itself does not make the folder the right one:
+    # a new or another Windows drive holds a recycle bin from the first day.
+    if all(is_outside_name(name) for name in names):
         return stored
     return 0
 
@@ -365,6 +370,14 @@ def doctor(config: config_module.Config, out=None) -> int:
             owner_text = ""
         if folder.get("writable"):
             ok(f"The upload folder {config.upload_dir} can be written to.")
+        elif folder.get("gone"):
+            # Removed and made again under the running container, which still
+            # holds the removed one. PUID and PGID would change nothing.
+            problem(f"The upload folder {config.upload_dir} is gone, or it was replaced while the helper was "
+                    "running, so the helper cannot store uploads.",
+                    "Check that the folder is there on the server, then restart the helper: "
+                    "docker compose restart   If it does not start then, read why with: "
+                    "docker logs phlix-camera-upload")
         else:
             problem(f"The helper cannot write to the upload folder {config.upload_dir}.{owner_text}",
                     "Set PUID and PGID in the Compose file to the user and group that own your photo "
