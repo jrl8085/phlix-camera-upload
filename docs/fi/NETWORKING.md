@@ -337,7 +337,7 @@ Kodin ulkopuolelta kotiisi muodostettu VPN ei auta: Phlix lähettää tiedostoja
 
 Useimmat reitittimet jakavat osoitteita rajatuksi ajaksi, ja palvelin voi saada uuden osoitteen. Phlix voi silloin kadottaa apuohjelman, varsinkin jos syötit osoitteen sovellukseen. Anna palvelimelle kiinteä osoite: tee sille reitittimessä DHCP-varaus.
 
-Kun osoite on vaihtunut, pariksi liitetty puhelin etsii apuohjelmaa itse uudelleen Plexin uudesta osoitteesta. Jos se ei löydä apuohjelmaa, esimerkiksi koska syötit osoitteen käyttöönoton yhteydessä, puhelimen on yhdistettävä uudelleen. Valitse Kameralataus-näytössä Katkaise yhteys. Napauta sitten Etsi apuohjelmaa ja yhdistä kuten ensimmäisellä kerralla. Puhelin säilyttää kansionsa, eikä mitään lähetetä kahdesti. Phlix kysyy uudelleen, mitä varmuuskopioidaan, ja aiemmat valintasi ovat valmiina.
+Kun osoite on vaihtunut, pariksi liitetty puhelin etsii apuohjelmaa itse uudelleen Plexin uudesta osoitteesta. Jos se ei löydä apuohjelmaa, esimerkiksi koska syötit osoitteen käyttöönoton yhteydessä, puhelimen on yhdistettävä uudelleen. Valitse Kameralataus-näytössä Katkaise yhteys. Napauta sitten Etsi apuohjelmaa ja yhdistä uudelleen. Jätä kansion nimi sellaiseksi kuin Phlix sen näyttää: puhelin säilyttää kansionsa, eikä mitään lähetetä kahdesti. Phlix kysyy uudelleen, mitä varmuuskopioidaan, ja aiemmat valintasi ovat valmiina.
 
 ### Kaksi reititintä peräkkäin
 

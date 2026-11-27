@@ -337,7 +337,7 @@ En VPN udefra og ind i dit hjem hjælper ikke: Phlix uploader kun på dit Wi-Fi 
 
 De fleste routere deler adresser ud for en begrænset tid, og serveren kan få en ny. Så kan Phlix miste hjælpeprogrammet, især hvis du skrev adressen i appen. Giv serveren en fast adresse: Lav en DHCP-reservation til den i routeren.
 
-Når adressen har ændret sig, søger en parret telefon selv efter hjælpeprogrammet igen på Plex' nye adresse. Hvis den ikke finder hjælpeprogrammet, for eksempel fordi du skrev adressen, da du satte det op, skal telefonen oprette forbindelse igen. Vælg Afbryd forbindelsen på skærmen Kameraupload. Tryk derefter på Søg efter hjælpeprogrammet, og opret forbindelse, som du gjorde første gang. Telefonen beholder sin mappe, og intet bliver uploadet to gange. Phlix spørger igen, hvad der skal sikkerhedskopieres, med de valg, du traf før, allerede indstillet.
+Når adressen har ændret sig, søger en parret telefon selv efter hjælpeprogrammet igen på Plex' nye adresse. Hvis den ikke finder hjælpeprogrammet, for eksempel fordi du skrev adressen, da du satte det op, skal telefonen oprette forbindelse igen. Vælg Afbryd forbindelsen på skærmen Kameraupload. Tryk derefter på Søg efter hjælpeprogrammet, og opret forbindelse igen. Lad mappenavnet stå, sådan som Phlix viser det: Telefonen beholder sin mappe, og intet bliver uploadet to gange. Phlix spørger igen, hvad der skal sikkerhedskopieres, med de valg, du traf før, allerede indstillet.
 
 ### To routere, den ene bag den anden
 

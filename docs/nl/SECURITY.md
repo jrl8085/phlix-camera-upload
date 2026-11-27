@@ -61,6 +61,7 @@ Het hulpprogramma is gemaakt voor een thuisnetwerk. Het hoort niet bereikbaar te
 - Een bestand wordt gemaakt onder een naam die nog vrij is. Niets wat er al staat, wordt overschreven.
 - Het hulpprogramma controleert de SHA-256 die de telefoon bij elke upload meestuurt, en gooit een beschadigde upload weg.
 - Een upload heeft een maximale grootte. Het hulpprogramma houdt een deel van de schijf vrij en telt de uploads mee die nog binnenkomen, zodat meerdere uploads tegelijk de schijf niet kunnen vullen.
+- Om een telefoon te vertellen welke van zijn foto's er nog zijn, leest het hulpprogramma de namen in de uploadmap, en de grootte, de datum of de inhoud van een bestand dat een van die foto's kan zijn, verplaatst naar een andere plek. Het antwoordt alleen met de id's van de eigen foto's van de telefoon, nooit met een bestand of een lijst met bestanden.
 
 **Verbindingen.**
 
@@ -78,7 +79,7 @@ Het hulpprogramma is gemaakt voor een thuisnetwerk. Het hoort niet bereikbaar te
 
 Dit zijn keuzes, geen fouten. Meld alles wat verder gaat dan dit.
 
-1. **De telefoons van één hulpprogramma vormen één huishouden.** Identieke bestanden worden één keer opgeslagen. Een gekoppelde telefoon kan dus te weten komen dat een andere telefoon een bestand al heeft geüpload, en hoe groot dat bestand is. Daarvoor moet hij hetzelfde bestand hebben, of de SHA-256 ervan kennen. Hij kan niet te weten komen waar het bestand staat, en hij kan het niet lezen.
+1. **De telefoons van één hulpprogramma vormen één huishouden.** Identieke bestanden worden één keer opgeslagen. Een gekoppelde telefoon kan dus te weten komen dat een andere telefoon een bestand al heeft geüpload, en hoe groot dat bestand is. Daarvoor moet hij hetzelfde bestand hebben, of de SHA-256 ervan kennen. Een telefoon kan het ook te weten komen aan de hand van naam, grootte en datum: als een bestand dat hij heeft gestuurd niet meer staat waar het hulpprogramma het heeft neergezet, zoekt het hulpprogramma overal in de uploadmap naar een bestand met dezelfde naam, grootte en datum, ook in de mappen van de andere telefoons. Hoe dan ook kan hij niet te weten komen waar het bestand staat, en hij kan het niet lezen.
 2. **Iedereen op het netwerk kan de statuspagina openen.** Die toont de versie van het hulpprogramma, de grootte van de schijf en de vrije ruimte, of Plex is gevonden en welke versie het heeft, hoeveel apparaten er gekoppeld zijn, en hoeveel bestanden er zijn opgeslagen en hun totale grootte. Het adres dat de app als eerste opvraagt, `/api/v1/hello`, geeft daarnaast de naam van het hulpprogramma en de identificatie van de Plex-server. Geen van beide toont een apparaatnaam, een bestandsnaam, een token of de koppelcode.
 3. **De koppelcode is een geheim van het huishouden.** De id van een apparaat is een willekeurige waarde die alleen het apparaat en het hulpprogramma kennen. Wie de koppelcode én die id heeft, kan koppelen als dat apparaat. Wijzig de code met de opdracht `new-code` als iemand het huishouden verlaat.
 4. **Zonder `PLEX_URL` vertrouwt het hulpprogramma wat als Plex antwoordt.** Het kijkt op de Docker-host, bij de gateway van de container, op `127.0.0.1` en bij een container met de naam `plex`, en neemt de eerste die antwoordt zoals Plex. Stel `PLEX_URL` in om het vast te leggen op je eigen server.

@@ -337,7 +337,7 @@ Un VPN de l’extérieur vers votre domicile n’aide pas : Phlix n’envoie qu
 
 La plupart des routeurs attribuent les adresses pour une durée limitée, et le serveur peut en recevoir une nouvelle. Phlix peut alors perdre l’assistant, surtout si vous avez saisi l’adresse dans l’app. Donnez au serveur une adresse fixe : dans le routeur, créez une réservation DHCP pour lui.
 
-Après le changement d’adresse, un téléphone jumelé recherche de lui-même l’assistant, à la nouvelle adresse de Plex. S’il ne le trouve pas, par exemple parce que vous avez saisi l’adresse lors de la configuration, le téléphone doit se reconnecter. Choisissez Déconnecter sur l’écran Envoi des photos. Touchez ensuite Rechercher l’assistant et connectez-vous comme la première fois. Le téléphone garde son dossier, et rien n’est envoyé deux fois. Phlix redemande ce qu’il faut sauvegarder, avec les choix faits auparavant déjà sélectionnés.
+Après le changement d’adresse, un téléphone jumelé recherche de lui-même l’assistant, à la nouvelle adresse de Plex. S’il ne le trouve pas, par exemple parce que vous avez saisi l’adresse lors de la configuration, le téléphone doit se reconnecter. Choisissez Déconnecter sur l’écran Envoi des photos. Touchez ensuite Rechercher l’assistant et reconnectez-vous. Laissez le nom du dossier tel que Phlix l’affiche : le téléphone garde son dossier, et rien n’est envoyé deux fois. Phlix redemande ce qu’il faut sauvegarder, avec les choix faits auparavant déjà sélectionnés.
 
 ### Deux routeurs, l’un derrière l’autre
 

@@ -61,6 +61,7 @@ L’assistente è pensato per una rete di casa. Non dovrebbe essere raggiungibil
 - Un file viene creato con un nome libero. Nulla di ciò che esiste già viene sovrascritto.
 - L’assistente verifica lo SHA-256 che il telefono invia con ogni caricamento, e scarta un caricamento danneggiato.
 - Un caricamento ha un limite di dimensione. L’assistente mantiene libera una parte del disco e conta i caricamenti ancora in arrivo, così più caricamenti contemporanei non possono riempire il disco.
+- Per dire a un telefono quali delle sue foto sono ancora lì, l’assistente legge i nomi nella cartella dei caricamenti, e le dimensioni, la data o il contenuto di un file che potrebbe essere una di esse, spostata altrove. Risponde solo con gli ID delle foto del telefono stesso, mai con un file o con un elenco di file.
 
 **Connessioni.**
 
@@ -78,7 +79,7 @@ L’assistente è pensato per una rete di casa. Non dovrebbe essere raggiungibil
 
 Sono scelte, non difetti. Segnala tutto ciò che va oltre.
 
-1. **I telefoni di un assistente sono una sola famiglia.** I file identici vengono archiviati una sola volta. Quindi un telefono abbinato può scoprire che un altro telefono ha già caricato un file, e quanto è grande quel file. Per farlo deve avere lo stesso file, o conoscerne lo SHA-256. Non può sapere dove è conservato il file, e non può leggerlo.
+1. **I telefoni di un assistente sono una sola famiglia.** I file identici vengono archiviati una sola volta. Quindi un telefono abbinato può scoprire che un altro telefono ha già caricato un file, e quanto è grande quel file. Per farlo deve avere lo stesso file, o conoscerne lo SHA-256. Un telefono può scoprirlo anche in base a nome, dimensioni e data: quando un file che ha inviato non è più dove l’assistente l’aveva messo, l’assistente cerca un file con lo stesso nome, le stesse dimensioni e la stessa data in tutta la cartella dei caricamenti, comprese le cartelle degli altri telefoni. In entrambi i casi il telefono non può sapere dove è conservato il file, e non può leggerlo.
 2. **Chiunque sia sulla rete può aprire la pagina di stato.** Mostra la versione dell’assistente, le dimensioni del disco e il suo spazio libero, se Plex è stato trovato e la sua versione, quanti dispositivi sono abbinati, e quanti file sono archiviati con la loro dimensione totale. L’indirizzo che l’app interroga per primo, `/api/v1/hello`, fornisce anche il nome dell’assistente e l’identificatore del server Plex. Nessuno di questi mostra un nome di dispositivo, un nome di file, un token o il codice di abbinamento.
 3. **Il codice di abbinamento è un segreto di famiglia.** L’ID di un dispositivo è un valore casuale che conoscono solo il dispositivo e l’assistente. Chi ha il codice di abbinamento e quell’ID può abbinarsi come quel dispositivo. Cambia il codice con il comando `new-code` quando qualcuno lascia la famiglia.
 4. **Senza `PLEX_URL`, l’assistente si fida di ciò che risponde come Plex.** Guarda l’host Docker, il gateway del container, `127.0.0.1` e un container chiamato `plex`, e prende il primo che risponde come Plex. Imposta `PLEX_URL` per vincolarlo al tuo server.

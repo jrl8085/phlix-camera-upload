@@ -61,6 +61,7 @@ O auxiliar foi feito para uma rede doméstica. Ele não deve ser acessível pela
 - Um arquivo é criado com um nome que esteja livre. Nada que já exista é sobrescrito.
 - O auxiliar confere o SHA-256 que o celular envia com cada upload e descarta um upload danificado.
 - Um upload tem limite de tamanho. O auxiliar mantém uma parte do disco livre e conta os uploads que ainda estão chegando, então vários uploads ao mesmo tempo não conseguem encher o disco.
+- Para dizer a um celular quais das fotos dele ainda estão lá, o auxiliar lê os nomes na pasta de upload, e o tamanho, a data ou o conteúdo de um arquivo que pode ser uma delas, movida para outro lugar. Ele responde só com os IDs das fotos do próprio celular, nunca com um arquivo ou uma lista de arquivos.
 
 **Conexões.**
 
@@ -78,7 +79,7 @@ O auxiliar foi feito para uma rede doméstica. Ele não deve ser acessível pela
 
 Estas são escolhas, não falhas. Relate qualquer coisa que vá além delas.
 
-1. **Os celulares de um mesmo auxiliar são de uma mesma casa.** Arquivos idênticos são armazenados uma vez só. Por isso, um celular emparelhado pode descobrir que outro celular já enviou um arquivo, e qual é o tamanho dele. Para isso, ele precisa ter o mesmo arquivo ou saber o SHA-256 dele. Ele não consegue descobrir onde o arquivo está guardado nem consegue lê-lo.
+1. **Os celulares de um mesmo auxiliar são de uma mesma casa.** Arquivos idênticos são armazenados uma vez só. Por isso, um celular emparelhado pode descobrir que outro celular já enviou um arquivo, e qual é o tamanho dele. Para isso, ele precisa ter o mesmo arquivo ou saber o SHA-256 dele. Um celular também pode descobrir isso pelo nome, pelo tamanho e pela data: quando um arquivo que ele enviou não está mais onde o auxiliar o colocou, o auxiliar procura um arquivo com o mesmo nome, o mesmo tamanho e a mesma data em qualquer lugar da pasta de upload, inclusive nas pastas dos outros celulares. Nos dois casos, o celular não consegue descobrir onde o arquivo está guardado nem consegue lê-lo.
 2. **Qualquer pessoa na rede pode abrir a página de status.** Ela mostra a versão do auxiliar, o tamanho do disco e o espaço livre, se o Plex foi encontrado e a versão dele, quantos dispositivos estão emparelhados e quantos arquivos estão armazenados, com o tamanho total. O endereço que o app consulta primeiro, `/api/v1/hello`, também informa o nome do auxiliar e o identificador do servidor Plex. Nenhum deles mostra nome de dispositivo, nome de arquivo, token ou o código de emparelhamento.
 3. **O código de emparelhamento é um segredo da casa.** O ID de um dispositivo é um valor aleatório que só o dispositivo e o auxiliar conhecem. Quem tiver o código de emparelhamento e esse ID pode emparelhar como esse dispositivo. Troque o código com o comando `new-code` quando alguém sair da casa.
 4. **Sem `PLEX_URL`, o auxiliar confia no que responder como Plex.** Ele procura no host do Docker, no gateway do contêiner, em `127.0.0.1` e em um contêiner chamado `plex`, e fica com o primeiro que responder como Plex. Defina `PLEX_URL` para fixá-lo no seu servidor.

@@ -61,6 +61,7 @@ Hjelpeprogrammet er laget for et hjemmenettverk. Det skal ikke kunne nås fra in
 - En fil opprettes under et navn som er ledig. Ingenting som allerede finnes, blir overskrevet.
 - Hjelpeprogrammet sjekker SHA-256-verdien som telefonen sender med hver opplasting, og kaster en skadet opplasting.
 - En opplasting har en størrelsesgrense. Hjelpeprogrammet holder en del av disken ledig og regner med opplastingene som fortsatt er på vei inn, slik at flere opplastinger samtidig ikke kan fylle disken.
+- For å fortelle en telefon hvilke av bildene dens som fortsatt er der, leser hjelpeprogrammet navnene i opplastingsmappen, og størrelsen, datoen eller innholdet i en fil som kan være ett av dem, flyttet til et annet sted. Det svarer bare med ID-ene til telefonens egne bilder, aldri med en fil eller en liste over filer.
 
 **Tilkoblinger.**
 
@@ -78,7 +79,7 @@ Hjelpeprogrammet er laget for et hjemmenettverk. Det skal ikke kunne nås fra in
 
 Dette er valg, ikke feil. Rapporter alt som går ut over dem.
 
-1. **Telefonene til ett hjelpeprogram er én husstand.** Identiske filer lagres én gang. Derfor kan en sammenkoblet telefon finne ut at en annen telefon allerede har lastet opp en fil, og hvor stor den filen er. For å få til det må den ha den samme filen, eller kjenne SHA-256-verdien til filen. Den kan ikke finne ut hvor filen ligger, og den kan ikke lese den.
+1. **Telefonene til ett hjelpeprogram er én husstand.** Identiske filer lagres én gang. Derfor kan en sammenkoblet telefon finne ut at en annen telefon allerede har lastet opp en fil, og hvor stor den filen er. For å få til det må den ha den samme filen, eller kjenne SHA-256-verdien til filen. En telefon kan også få vite det ut fra navn, størrelse og dato: Når en fil den har sendt, ikke lenger ligger der hjelpeprogrammet la den, leter hjelpeprogrammet etter en fil med samme navn, størrelse og dato hvor som helst i opplastingsmappen, også i mappene til de andre telefonene. I begge tilfeller kan den ikke finne ut hvor filen ligger, og den kan ikke lese den.
 2. **Alle på nettverket kan åpne statussiden.** Den viser versjonen av hjelpeprogrammet, størrelsen på disken og den ledige plassen, om Plex ble funnet og hvilken versjon Plex har, hvor mange enheter som er sammenkoblet, og hvor mange filer som er lagret og den samlede størrelsen deres. Adressen som appen kontakter først, `/api/v1/hello`, gir også navnet på hjelpeprogrammet og identifikatoren til Plex-serveren. Ingen av dem viser et enhetsnavn, et filnavn, et token eller sammenkoblingskoden.
 3. **Sammenkoblingskoden er en hemmelighet for husstanden.** ID-en til en enhet er en tilfeldig verdi som bare enheten og hjelpeprogrammet kjenner. Den som har sammenkoblingskoden og den ID-en, kan sammenkoble seg som den enheten. Bytt koden med kommandoen `new-code` når noen forlater husstanden.
 4. **Uten `PLEX_URL` stoler hjelpeprogrammet på det som svarer som Plex.** Det ser på Docker-verten, gatewayen til containeren, `127.0.0.1` og en container som heter `plex`, og tar den første som svarer slik Plex gjør. Sett `PLEX_URL` for å låse det til serveren din.

@@ -337,7 +337,7 @@ Ett VPN utifrån in till ditt hem hjälper inte: Phlix laddar bara upp på ditt 
 
 De flesta routrar delar ut adresser för en begränsad tid, och servern kan få en ny. Phlix kan då tappa bort hjälpprogrammet, framför allt om du skrev in adressen i appen. Ge servern en fast adress: gör en DHCP-reservation för den i routern.
 
-När adressen har ändrats letar en parkopplad telefon efter hjälpprogrammet igen av sig själv, på den nya adressen till Plex. Om den inte hittar hjälpprogrammet, till exempel för att du skrev in adressen när du ställde in anslutningen, måste telefonen ansluta igen. Välj Koppla från på skärmen Kamerauppladdning. Tryck sedan på Leta efter hjälpprogrammet och anslut som du gjorde första gången. Telefonen behåller sin mapp, och ingenting laddas upp två gånger. Phlix frågar igen vad som ska säkerhetskopieras, med de val du gjorde tidigare redan ifyllda.
+När adressen har ändrats letar en parkopplad telefon efter hjälpprogrammet igen av sig själv, på den nya adressen till Plex. Om den inte hittar hjälpprogrammet, till exempel för att du skrev in adressen när du ställde in anslutningen, måste telefonen ansluta igen. Välj Koppla från på skärmen Kamerauppladdning. Tryck sedan på Leta efter hjälpprogrammet och anslut igen. Låt mappnamnet stå kvar som Phlix visar det: telefonen behåller sin mapp, och ingenting laddas upp två gånger. Phlix frågar igen vad som ska säkerhetskopieras, med de val du gjorde tidigare redan ifyllda.
 
 ### Två routrar, den ena bakom den andra
 

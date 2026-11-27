@@ -61,6 +61,7 @@ L’assistant est conçu pour un réseau domestique. Il ne devrait pas être joi
 - Un fichier est créé sous un nom libre. Rien de ce qui existe déjà n’est écrasé.
 - L’assistant vérifie le SHA-256 que le téléphone envoie avec chaque fichier, et rejette un envoi endommagé.
 - Un envoi a une taille limite. L’assistant garde une partie du disque libre, et compte les envois encore en cours de réception, si bien que plusieurs envois simultanés ne peuvent pas remplir le disque.
+- Pour indiquer à un téléphone lesquelles de ses photos sont encore là, l’assistant lit les noms dans le dossier de destination, ainsi que la taille, la date ou le contenu d’un fichier qui pourrait être l’une d’elles, déplacée. Il ne répond qu’avec les identifiants des photos de ce téléphone, jamais avec un fichier ni avec une liste de fichiers.
 
 **Les connexions.**
 
@@ -78,7 +79,7 @@ L’assistant est conçu pour un réseau domestique. Il ne devrait pas être joi
 
 Ce sont des choix, pas des défauts. Signalez tout ce qui va au-delà.
 
-1. **Les téléphones d’un même assistant forment un seul foyer.** Les fichiers identiques ne sont stockés qu’une fois. Un téléphone jumelé peut donc apprendre qu’un autre téléphone a déjà envoyé un fichier, et la taille de ce fichier. Pour cela, il doit posséder le même fichier, ou connaître son SHA-256. Il ne peut pas savoir où le fichier est conservé, et il ne peut pas le lire.
+1. **Les téléphones d’un même assistant forment un seul foyer.** Les fichiers identiques ne sont stockés qu’une fois. Un téléphone jumelé peut donc apprendre qu’un autre téléphone a déjà envoyé un fichier, et la taille de ce fichier. Pour cela, il doit posséder le même fichier, ou connaître son SHA-256. Un téléphone peut aussi l’apprendre par le nom, la taille et la date : quand un fichier qu’il a envoyé n’est plus là où l’assistant l’a mis, l’assistant cherche un fichier de même nom, de même taille et de même date partout dans le dossier de destination, y compris dans les dossiers des autres téléphones. Dans les deux cas, le téléphone ne peut pas savoir où le fichier est conservé, et il ne peut pas le lire.
 2. **Toute personne sur le réseau peut ouvrir la page d’état.** Elle affiche la version de l’assistant, la taille du disque et son espace libre, si Plex a été trouvé et sa version, le nombre d’appareils jumelés, ainsi que le nombre de fichiers stockés et leur taille totale. L’adresse que l’app interroge en premier, `/api/v1/hello`, donne aussi le nom de l’assistant et l’identifiant du serveur Plex. Aucune d’elles n’affiche de nom d’appareil, de nom de fichier, de jeton, ni le code de jumelage.
 3. **Le code de jumelage est un secret de foyer.** L’identifiant d’un appareil est une valeur aléatoire que seuls l’appareil et l’assistant connaissent. Quiconque possède le code de jumelage et cet identifiant peut se jumeler en se faisant passer pour cet appareil. Changez le code avec la commande `new-code` quand quelqu’un quitte le foyer.
 4. **Sans `PLEX_URL`, l’assistant fait confiance à ce qui répond comme Plex.** Il regarde l’hôte Docker, la passerelle du conteneur, `127.0.0.1` et un conteneur nommé `plex`, et prend le premier qui répond comme Plex. Réglez `PLEX_URL` pour le lier à votre serveur.

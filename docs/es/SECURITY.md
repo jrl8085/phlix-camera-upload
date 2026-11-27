@@ -61,6 +61,7 @@ El asistente está hecho para una red doméstica. No debería ser accesible desd
 - Un archivo se crea con un nombre que esté libre. No se sobrescribe nada de lo que ya existe.
 - El asistente comprueba el SHA-256 que el teléfono envía con cada subida y descarta una subida dañada.
 - Una subida tiene un límite de tamaño. El asistente mantiene libre una parte del disco y cuenta las subidas que todavía están llegando, así que varias subidas a la vez no pueden llenar el disco.
+- Para decirle a un teléfono cuáles de sus fotos siguen ahí, el asistente lee los nombres que hay en la carpeta de subidas, y el tamaño, la fecha o el contenido de un archivo que puede ser una de ellas, movida a otro lugar. Solo responde con los ids de las fotos del propio teléfono, nunca con un archivo ni con una lista de archivos.
 
 **Conexiones.**
 
@@ -78,7 +79,7 @@ El asistente está hecho para una red doméstica. No debería ser accesible desd
 
 Son decisiones, no fallos. Informa de cualquier cosa que vaya más allá de ellas.
 
-1. **Los teléfonos de un asistente son un mismo hogar.** Los archivos idénticos se guardan una sola vez. Por eso, un teléfono vinculado puede saber que otro teléfono ya subió un archivo, y qué tamaño tiene ese archivo. Para ello debe tener el mismo archivo, o conocer su SHA-256. No puede saber dónde se guarda el archivo, ni puede leerlo.
+1. **Los teléfonos de un asistente son un mismo hogar.** Los archivos idénticos se guardan una sola vez. Por eso, un teléfono vinculado puede saber que otro teléfono ya subió un archivo, y qué tamaño tiene ese archivo. Para ello debe tener el mismo archivo, o conocer su SHA-256. Un teléfono también puede saberlo por el nombre, el tamaño y la fecha: cuando un archivo que envió ya no está donde lo puso el asistente, el asistente busca un archivo con el mismo nombre, tamaño y fecha en cualquier parte de la carpeta de subidas, incluidas las carpetas de los demás teléfonos. En ambos casos, el teléfono no puede saber dónde se guarda el archivo, ni puede leerlo.
 2. **Cualquiera en la red puede abrir la página de estado.** Muestra la versión del asistente, el tamaño del disco y su espacio libre, si se encontró Plex y su versión, cuántos dispositivos están vinculados, y cuántos archivos hay guardados y su tamaño total. La dirección que la app consulta primero, `/api/v1/hello`, también da el nombre del asistente y el identificador del servidor Plex. Ninguna de ellas muestra un nombre de dispositivo, un nombre de archivo, un token ni el código de vinculación.
 3. **El código de vinculación es un secreto del hogar.** El id de un dispositivo es un valor aleatorio que solo conocen el dispositivo y el asistente. Quien tenga el código de vinculación y ese id puede vincularse como ese dispositivo. Cambia el código con el comando `new-code` cuando alguien deje el hogar.
 4. **Sin `PLEX_URL`, el asistente confía en lo que responde como Plex.** Busca en el host de Docker, en la puerta de enlace del contenedor, en `127.0.0.1` y en un contenedor llamado `plex`, y se queda con el primero que responda como Plex. Define `PLEX_URL` para fijarlo a tu servidor.

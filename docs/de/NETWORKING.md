@@ -337,7 +337,7 @@ Ein VPN, das dich von außen mit zu Hause verbindet, hilft nicht: Phlix lädt nu
 
 Die meisten Router vergeben Adressen nur für eine begrenzte Zeit, und der Server kann eine neue bekommen. Phlix kann das Hilfsprogramm dann verlieren, vor allem, wenn du die Adresse in der App eingegeben hast. Gib dem Server eine feste Adresse: Lege im Router eine DHCP-Reservierung für ihn an.
 
-Nachdem sich die Adresse geändert hat, sucht ein gekoppeltes Smartphone das Hilfsprogramm von selbst erneut, unter der neuen Adresse von Plex. Findet es das Hilfsprogramm nicht, zum Beispiel weil du die Adresse bei der Einrichtung eingegeben hast, muss sich das Smartphone neu verbinden. Wähle „Trennen“ auf dem Bildschirm „Kamera-Upload“. Tippe dann auf „Hilfsprogramm suchen“ und verbinde dich wie beim ersten Mal. Das Smartphone behält seinen Ordner, und nichts wird doppelt hochgeladen. Phlix fragt erneut, was ins Backup kommt, und deine bisherige Auswahl ist schon eingestellt.
+Nachdem sich die Adresse geändert hat, sucht ein gekoppeltes Smartphone das Hilfsprogramm von selbst erneut, unter der neuen Adresse von Plex. Findet es das Hilfsprogramm nicht, zum Beispiel weil du die Adresse bei der Einrichtung eingegeben hast, muss sich das Smartphone neu verbinden. Wähle „Trennen“ auf dem Bildschirm „Kamera-Upload“. Tippe dann auf „Hilfsprogramm suchen“ und verbinde dich erneut. Lass den Ordnernamen so, wie Phlix ihn anzeigt: Das Smartphone behält seinen Ordner, und nichts wird doppelt hochgeladen. Phlix fragt erneut, was ins Backup kommt, und deine bisherige Auswahl ist schon eingestellt.
 
 ### Zwei Router hintereinander
 

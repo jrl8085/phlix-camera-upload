@@ -337,7 +337,7 @@ Uma VPN de fora para dentro da sua casa não ajuda: o Phlix só envia no Wi-Fi d
 
 A maioria dos roteadores distribui endereços por tempo limitado, e o servidor pode receber um novo. O Phlix pode então perder o auxiliar, principalmente quando você digitou o endereço no app. Dê ao servidor um endereço fixo: no roteador, crie uma reserva de DHCP para ele.
 
-Depois que o endereço muda, um celular emparelhado procura o auxiliar de novo sozinho, no novo endereço do Plex. Se ele não encontrar o auxiliar, por exemplo porque você digitou o endereço ao configurar, o celular precisa se conectar de novo. Escolha Desconectar na tela do Upload da Câmera. Depois toque em Procurar o Auxiliar e conecte-se como na primeira vez. O celular mantém a sua pasta, e nada é enviado duas vezes. O Phlix pergunta de novo o que incluir no backup, com as escolhas que você fez antes já marcadas.
+Depois que o endereço muda, um celular emparelhado procura o auxiliar de novo sozinho, no novo endereço do Plex. Se ele não encontrar o auxiliar, por exemplo porque você digitou o endereço ao configurar, o celular precisa se conectar de novo. Escolha Desconectar na tela do Upload da Câmera. Depois toque em Procurar o Auxiliar e conecte-se de novo. Deixe o nome da pasta como o Phlix mostra: o celular mantém a sua pasta, e nada é enviado duas vezes. O Phlix pergunta de novo o que incluir no backup, com as escolhas que você fez antes já marcadas.
 
 ### Dois roteadores, um atrás do outro
 

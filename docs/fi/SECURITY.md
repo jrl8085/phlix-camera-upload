@@ -61,6 +61,7 @@ Apuohjelma on tehty kotiverkkoon. Siihen ei pitäisi päästä internetistä.
 - Tiedosto luodaan nimellä, joka on vapaana. Mitään jo olemassa olevaa ei korvata.
 - Apuohjelma tarkistaa SHA-256-tiivisteen, jonka puhelin lähettää jokaisen lähetyksen mukana, ja hylkää vioittuneen lähetyksen.
 - Lähetyksellä on kokoraja. Apuohjelma pitää osan levystä vapaana ja laskee mukaan vielä saapumassa olevat lähetykset, joten useat samanaikaiset lähetykset eivät voi täyttää levyä.
+- Kertoakseen puhelimelle, mitkä sen kuvista ovat yhä tallessa, apuohjelma lukee lähetyskansiossa olevat nimet sekä sellaisen tiedoston koon, päivämäärän tai sisällön, joka voi olla jokin niistä muualle siirrettynä. Se vastaa vain puhelimen omien kuvien tunnisteilla, ei koskaan tiedostolla tai tiedostoluettelolla.
 
 **Yhteydet.**
 
@@ -78,7 +79,7 @@ Apuohjelma on tehty kotiverkkoon. Siihen ei pitäisi päästä internetistä.
 
 Nämä ovat valintoja, eivät vikoja. Ilmoita kaikesta, mikä menee niitä pidemmälle.
 
-1. **Saman apuohjelman puhelimet ovat yksi kotitalous.** Identtiset tiedostot tallennetaan kerran. Siksi pariksi liitetty puhelin voi saada selville, että toinen puhelin on jo lähettänyt tiedoston, ja kuinka suuri tiedosto on. Sitä varten sillä on oltava sama tiedosto, tai sen on tiedettävä tiedoston SHA-256-tiiviste. Se ei voi saada selville, missä tiedostoa säilytetään, eikä se voi lukea sitä.
+1. **Saman apuohjelman puhelimet ovat yksi kotitalous.** Identtiset tiedostot tallennetaan kerran. Siksi pariksi liitetty puhelin voi saada selville, että toinen puhelin on jo lähettänyt tiedoston, ja kuinka suuri tiedosto on. Sitä varten sillä on oltava sama tiedosto, tai sen on tiedettävä tiedoston SHA-256-tiiviste. Puhelin voi saada sen selville myös nimen, koon ja päivämäärän perusteella: kun sen lähettämä tiedosto ei ole enää siellä, minne apuohjelma sen tallensi, apuohjelma etsii tiedostoa, jolla on sama nimi, koko ja päivämäärä, kaikkialta lähetyskansiosta, myös muiden puhelinten kansioista. Kummassakin tapauksessa puhelin ei voi saada selville, missä tiedostoa säilytetään, eikä se voi lukea sitä.
 2. **Kuka tahansa verkossa voi avata tilasivun.** Se näyttää apuohjelman version, levyn koon ja vapaan tilan, löytyikö Plex ja Plexin version, kuinka monta laitetta on liitetty pariksi sekä kuinka monta tiedostoa on tallennettu ja niiden kokonaiskoon. Osoite, jota sovellus kysyy ensimmäisenä, `/api/v1/hello`, kertoo lisäksi apuohjelman nimen ja Plex-palvelimen tunnisteen. Mikään niistä ei näytä laitteen nimeä, tiedoston nimeä, tunnusta eikä parinmuodostuskoodia.
 3. **Parinmuodostuskoodi on kotitalouden salaisuus.** Laitteen tunniste on satunnainen arvo, jonka tietävät vain laite ja apuohjelma. Se, jolla on parinmuodostuskoodi ja tuo tunniste, voi muodostaa parin kyseisenä laitteena. Vaihda koodi `new-code`-komennolla, kun joku ei enää kuulu kotitalouteen.
 4. **Ilman `PLEX_URL`-asetusta apuohjelma luottaa siihen, mikä vastaa Plexinä.** Se katsoo Docker-isäntää, kontin yhdyskäytävää, osoitetta `127.0.0.1` ja konttia nimeltä `plex` ja valitsee ensimmäisen, joka vastaa kuin Plex. Aseta `PLEX_URL`, niin apuohjelma käyttää vain omaa palvelintasi.

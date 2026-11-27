@@ -61,6 +61,7 @@ Hjælpeprogrammet er lavet til et hjemmenetværk. Det bør ikke kunne nås fra i
 - En fil bliver oprettet under et navn, der er ledigt. Intet, der allerede findes, bliver overskrevet.
 - Hjælpeprogrammet tjekker den SHA-256, som telefonen sender med hver upload, og smider en beskadiget upload væk.
 - En upload har en størrelsesgrænse. Hjælpeprogrammet holder en del af disken fri og tæller de uploads med, der stadig er på vej, så flere uploads på én gang ikke kan fylde disken.
+- For at fortælle en telefon, hvilke af dens fotos der stadig er der, læser hjælpeprogrammet navnene i uploadmappen og størrelsen, datoen eller indholdet af en fil, der kan være et af dem, flyttet et andet sted hen. Det svarer kun med telefonens egne foto-id'er, aldrig med en fil eller en liste over filer.
 
 **Forbindelser.**
 
@@ -78,7 +79,7 @@ Hjælpeprogrammet er lavet til et hjemmenetværk. Det bør ikke kunne nås fra i
 
 Det er valg, ikke fejl. Rapportér alt, der går ud over dem.
 
-1. **Telefonerne hos ét hjælpeprogram er én husstand.** Ens filer bliver kun gemt én gang. Derfor kan en parret telefon finde ud af, at en anden telefon allerede har uploadet en fil, og hvor stor filen er. For at gøre det skal den have den samme fil eller kende dens SHA-256. Den kan ikke finde ud af, hvor filen ligger, og den kan ikke læse den.
+1. **Telefonerne hos ét hjælpeprogram er én husstand.** Ens filer bliver kun gemt én gang. Derfor kan en parret telefon finde ud af, at en anden telefon allerede har uploadet en fil, og hvor stor filen er. For at gøre det skal den have den samme fil eller kende dens SHA-256. En telefon kan også finde ud af det ud fra navn, størrelse og dato: Når en fil, den har sendt, ikke længere ligger, hvor hjælpeprogrammet lagde den, leder hjælpeprogrammet efter en fil med samme navn, størrelse og dato overalt i uploadmappen, også i de andre telefoners mapper. I begge tilfælde kan den ikke finde ud af, hvor filen ligger, og den kan ikke læse den.
 2. **Alle på netværket kan åbne statussiden.** Den viser hjælpeprogrammets version, diskens størrelse og ledige plads, om Plex blev fundet og Plex' version, hvor mange enheder der er parret, og hvor mange filer der er gemt, og deres samlede størrelse. Den adresse, appen spørger først, `/api/v1/hello`, giver også hjælpeprogrammets navn og Plex-serverens identifikator. Ingen af dem viser et enhedsnavn, et filnavn, et token eller parringskoden.
 3. **Parringskoden er en hemmelighed i husstanden.** En enheds id er en tilfældig værdi, som kun enheden og hjælpeprogrammet kender. Den, der har parringskoden og det id, kan danne par som den enhed. Skift koden med kommandoen `new-code`, når nogen forlader husstanden.
 4. **Uden `PLEX_URL` stoler hjælpeprogrammet på det, der svarer som Plex.** Det kigger på Docker-værten, containerens gateway, `127.0.0.1` og en container ved navn `plex` og tager den første, der svarer som Plex. Sæt `PLEX_URL` for at låse det fast til din server.

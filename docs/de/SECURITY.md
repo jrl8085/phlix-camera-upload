@@ -61,6 +61,7 @@ Das Hilfsprogramm ist für ein Heimnetzwerk gemacht. Aus dem Internet sollte es 
 - Eine Datei wird unter einem freien Namen angelegt. Nichts, was schon da ist, wird überschrieben.
 - Das Hilfsprogramm prüft die SHA-256-Prüfsumme, die das Smartphone mit jedem Upload sendet, und verwirft einen beschädigten Upload.
 - Ein Upload hat eine Größengrenze. Das Hilfsprogramm hält einen Teil des Datenträgers frei und rechnet die Uploads mit ein, die noch ankommen, sodass mehrere Uploads gleichzeitig den Datenträger nicht füllen können.
+- Um einem Smartphone zu sagen, welche seiner Fotos noch da sind, liest das Hilfsprogramm die Namen im Upload-Ordner und dazu Größe, Datum oder Inhalt einer Datei, die eines davon sein kann, nur verschoben. Es antwortet nur mit den eigenen Foto-IDs des Smartphones, nie mit einer Datei oder einer Liste von Dateien.
 
 **Verbindungen.**
 
@@ -78,7 +79,7 @@ Das Hilfsprogramm ist für ein Heimnetzwerk gemacht. Aus dem Internet sollte es 
 
 Das sind Entscheidungen, keine Fehler. Melde alles, was darüber hinausgeht.
 
-1. **Die Smartphones eines Hilfsprogramms sind ein Haushalt.** Identische Dateien werden einmal gespeichert. Ein gekoppeltes Smartphone kann deshalb erfahren, dass ein anderes Smartphone eine Datei bereits hochgeladen hat, und wie groß diese Datei ist. Dafür muss es dieselbe Datei haben oder ihre SHA-256-Prüfsumme kennen. Es kann nicht erfahren, wo die Datei liegt, und es kann sie nicht lesen.
+1. **Die Smartphones eines Hilfsprogramms sind ein Haushalt.** Identische Dateien werden einmal gespeichert. Ein gekoppeltes Smartphone kann deshalb erfahren, dass ein anderes Smartphone eine Datei bereits hochgeladen hat, und wie groß diese Datei ist. Dafür muss es dieselbe Datei haben oder ihre SHA-256-Prüfsumme kennen. Ein Smartphone kann es auch anhand von Name, Größe und Datum erfahren: Wenn eine Datei, die es gesendet hat, nicht mehr dort liegt, wo das Hilfsprogramm sie abgelegt hat, sucht das Hilfsprogramm im ganzen Upload-Ordner nach einer Datei mit demselben Namen, derselben Größe und demselben Datum, auch in den Ordnern der anderen Smartphones. In beiden Fällen kann das Smartphone nicht erfahren, wo die Datei liegt, und es kann sie nicht lesen.
 2. **Jeder im Netzwerk kann die Statusseite öffnen.** Sie zeigt die Version des Hilfsprogramms, die Größe des Datenträgers und seinen freien Platz, ob Plex gefunden wurde und welche Version es hat, wie viele Geräte gekoppelt sind und wie viele Dateien gespeichert sind, mit ihrer Gesamtgröße. Die Adresse, die die App zuerst abfragt, `/api/v1/hello`, nennt außerdem den Namen des Hilfsprogramms und die Kennung des Plex-Servers. Keine von beiden zeigt einen Gerätenamen, einen Dateinamen, ein Token oder den Kopplungscode.
 3. **Der Kopplungscode ist ein Geheimnis des Haushalts.** Die ID eines Geräts ist ein Zufallswert, den nur das Gerät und das Hilfsprogramm kennen. Wer den Kopplungscode und diese ID hat, kann als dieses Gerät koppeln. Ändere den Code mit dem Befehl `new-code`, wenn jemand den Haushalt verlässt.
 4. **Ohne `PLEX_URL` vertraut das Hilfsprogramm dem, was als Plex antwortet.** Es sucht auf dem Docker-Host, am Gateway des Containers, unter `127.0.0.1` und in einem Container namens `plex`, und nimmt das Erste, was wie Plex antwortet. Setze `PLEX_URL`, um es auf deinen Server festzulegen.

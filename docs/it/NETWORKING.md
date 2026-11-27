@@ -337,7 +337,7 @@ Una VPN dall’esterno verso casa tua non aiuta: Phlix carica solo sulla rete Wi
 
 La maggior parte dei router assegna gli indirizzi per un tempo limitato, e il server può riceverne uno nuovo. Phlix può allora perdere l’assistente, soprattutto se hai inserito l’indirizzo nell’app. Dai al server un indirizzo fisso: nel router, crea una prenotazione DHCP per il server.
 
-Dopo il cambio di indirizzo, un telefono abbinato cerca di nuovo l’assistente da solo, al nuovo indirizzo di Plex. Se non trova l’assistente, ad esempio perché durante la configurazione avevi inserito l’indirizzo a mano, il telefono deve connettersi di nuovo. Scegli “Disconnetti” nella schermata Caricamento da fotocamera. Poi tocca “Cerca l’assistente” e connettiti come la prima volta. Il telefono mantiene la sua cartella, e nulla viene caricato due volte. Phlix chiede di nuovo cosa includere nel backup, con le scelte fatte in precedenza già impostate.
+Dopo il cambio di indirizzo, un telefono abbinato cerca di nuovo l’assistente da solo, al nuovo indirizzo di Plex. Se non trova l’assistente, ad esempio perché durante la configurazione avevi inserito l’indirizzo a mano, il telefono deve connettersi di nuovo. Scegli “Disconnetti” nella schermata Caricamento da fotocamera. Poi tocca “Cerca l’assistente” e connettiti di nuovo. Lascia il nome della cartella così come lo mostra Phlix: il telefono mantiene la sua cartella, e nulla viene caricato due volte. Phlix chiede di nuovo cosa includere nel backup, con le scelte fatte in precedenza già impostate.
 
 ### Due router, uno dietro l’altro
 

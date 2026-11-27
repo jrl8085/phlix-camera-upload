@@ -337,7 +337,7 @@ VPN z zewnątrz do domu nie pomoże: Phlix przesyła pliki tylko w domowej sieci
 
 Większość routerów przydziela adresy na ograniczony czas, więc serwer może dostać nowy. Phlix może wtedy zgubić pomocnika, zwłaszcza jeśli adres został wpisany w aplikacji ręcznie. Nadaj serwerowi stały adres: utwórz dla niego w routerze rezerwację DHCP.
 
-Po zmianie adresu sparowany telefon sam szuka pomocnika ponownie, pod nowym adresem Plex. Jeśli go nie znajdzie, na przykład dlatego, że adres został wpisany ręcznie podczas konfiguracji, telefon musi połączyć się ponownie. Wybierz Rozłącz na ekranie Przesyłanie z aparatu. Następnie stuknij Wyszukaj pomocnika i połącz się tak jak za pierwszym razem. Telefon zachowuje swój folder i nic nie jest przesyłane dwa razy. Phlix ponownie pyta, co uwzględnić w kopii zapasowej, a wcześniejsze wybory są już ustawione.
+Po zmianie adresu sparowany telefon sam szuka pomocnika ponownie, pod nowym adresem Plex. Jeśli go nie znajdzie, na przykład dlatego, że adres został wpisany ręcznie podczas konfiguracji, telefon musi połączyć się ponownie. Wybierz Rozłącz na ekranie Przesyłanie z aparatu. Następnie stuknij Wyszukaj pomocnika i połącz się ponownie. Zostaw nazwę folderu, którą pokazuje Phlix: telefon zachowuje swój folder i nic nie jest przesyłane dwa razy. Phlix ponownie pyta, co uwzględnić w kopii zapasowej, a wcześniejsze wybory są już ustawione.
 
 ### Dwa routery, jeden za drugim
 

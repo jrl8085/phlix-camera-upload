@@ -337,7 +337,7 @@ Una VPN desde fuera hacia tu casa no sirve: Phlix solo sube en la red Wi-Fi de t
 
 La mayoría de los routers asignan direcciones por un tiempo limitado, y el servidor puede recibir una nueva. Entonces Phlix puede perder el asistente, sobre todo si escribiste la dirección en la app. Dale al servidor una dirección fija: en el router, crea una reserva de DHCP para él.
 
-Después de que cambie la dirección, un teléfono vinculado vuelve a buscar el asistente por sí solo, en la nueva dirección de Plex. Si no encuentra el asistente, por ejemplo porque escribiste la dirección al configurarlo, el teléfono tiene que volver a conectarse. Elige Desconectar en la pantalla Subida de cámara. Luego toca Buscar el asistente y conéctate como la primera vez. El teléfono conserva su carpeta y nada se sube dos veces. Phlix vuelve a preguntar qué copiar, con las opciones que elegiste antes ya marcadas.
+Después de que cambie la dirección, un teléfono vinculado vuelve a buscar el asistente por sí solo, en la nueva dirección de Plex. Si no encuentra el asistente, por ejemplo porque escribiste la dirección al configurarlo, el teléfono tiene que volver a conectarse. Elige Desconectar en la pantalla Subida de cámara. Luego toca Buscar el asistente y vuelve a conectarte. Deja el nombre de la carpeta tal como lo muestra Phlix: el teléfono conserva su carpeta y nada se sube dos veces. Phlix vuelve a preguntar qué copiar, con las opciones que elegiste antes ya marcadas.
 
 ### Dos routers, uno detrás del otro
 

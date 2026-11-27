@@ -61,6 +61,7 @@ Hjälpprogrammet är gjort för ett hemnätverk. Det ska inte gå att nå från 
 - En fil skapas under ett namn som är ledigt. Ingenting som redan finns skrivs över.
 - Hjälpprogrammet kontrollerar den SHA-256 som telefonen skickar med varje uppladdning, och kastar en skadad uppladdning.
 - En uppladdning har en storleksgräns. Hjälpprogrammet håller en del av disken ledig och räknar med de uppladdningar som fortfarande håller på att komma fram, så att flera uppladdningar samtidigt inte kan fylla disken.
+- För att tala om för en telefon vilka av dess foton som fortfarande finns kvar, läser hjälpprogrammet namnen i uppladdningsmappen, och storleken, datumet eller innehållet i en fil som kan vara ett av dem, flyttat till en annan plats. Det svarar bara med telefonens egna foto-id:n, aldrig med en fil eller en lista över filer.
 
 **Anslutningar.**
 
@@ -78,7 +79,7 @@ Hjälpprogrammet är gjort för ett hemnätverk. Det ska inte gå att nå från 
 
 Det här är val, inte fel. Rapportera allt som går utöver dem.
 
-1. **Telefonerna hos ett hjälpprogram är ett hushåll.** Identiska filer sparas en gång. Därför kan en parkopplad telefon få veta att en annan telefon redan har laddat upp en fil, och hur stor filen är. För det måste den ha samma fil eller känna till dess SHA-256. Den kan inte få veta var filen förvaras, och den kan inte läsa den.
+1. **Telefonerna hos ett hjälpprogram är ett hushåll.** Identiska filer sparas en gång. Därför kan en parkopplad telefon få veta att en annan telefon redan har laddat upp en fil, och hur stor filen är. För det måste den ha samma fil eller känna till dess SHA-256. En telefon kan också få veta det utifrån namn, storlek och datum: när en fil som den har skickat inte längre finns där hjälpprogrammet lade den, letar hjälpprogrammet efter en fil med samma namn, storlek och datum var som helst i uppladdningsmappen, även i de andra telefonernas mappar. I båda fallen kan den inte få veta var filen förvaras, och den kan inte läsa den.
 2. **Alla i nätverket kan öppna statussidan.** Den visar hjälpprogrammets version, diskens storlek och lediga utrymme, om Plex hittades och i så fall vilken version, hur många enheter som är parkopplade, och hur många filer som är sparade och deras sammanlagda storlek. Adressen som appen frågar först, `/api/v1/hello`, ger också hjälpprogrammets namn och Plex-serverns identifierare. Ingen av dem visar ett enhetsnamn, ett filnamn, en token eller parkopplingskoden.
 3. **Parkopplingskoden är en hemlighet inom hushållet.** En enhets id är ett slumpmässigt värde som bara enheten och hjälpprogrammet känner till. Den som har parkopplingskoden och det id:t kan parkoppla som den enheten. Byt koden med kommandot `new-code` när någon lämnar hushållet.
 4. **Utan `PLEX_URL` litar hjälpprogrammet på det som svarar som Plex.** Det tittar på Docker-värden, containerns gateway, `127.0.0.1` och en container som heter `plex`, och tar det första som svarar som Plex. Ställ in `PLEX_URL` för att låsa det till din server.

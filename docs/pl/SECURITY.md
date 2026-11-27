@@ -61,6 +61,7 @@ Pomocnik jest przeznaczony do sieci domowej. Nie powinien być dostępny z inter
 - Plik jest tworzony pod wolną nazwą. Nic, co już istnieje, nie zostaje nadpisane.
 - Pomocnik sprawdza sumę SHA-256, którą telefon wysyła z każdym przesłaniem, i odrzuca uszkodzone przesłanie.
 - Przesłanie ma limit rozmiaru. Pomocnik utrzymuje część dysku wolną i wlicza przesłania, które jeszcze trwają, więc kilka jednoczesnych przesłań nie zapełni dysku.
+- Aby powiedzieć telefonowi, które z jego zdjęć wciąż tam są, pomocnik odczytuje nazwy w folderze przesyłania oraz rozmiar, datę lub zawartość pliku, który może być jednym z nich, przeniesionym w inne miejsce. Odpowiada wyłącznie identyfikatorami własnych zdjęć tego telefonu, nigdy plikiem ani listą plików.
 
 **Połączenia.**
 
@@ -78,7 +79,7 @@ Pomocnik jest przeznaczony do sieci domowej. Nie powinien być dostępny z inter
 
 To świadome decyzje, a nie błędy. Zgłoś wszystko, co wykracza poza nie.
 
-1. **Telefony jednego pomocnika to jedno gospodarstwo domowe.** Identyczne pliki są przechowywane raz. Dlatego sparowany telefon może się dowiedzieć, że inny telefon już przesłał dany plik, i jak duży jest ten plik. Musi w tym celu mieć ten sam plik albo znać jego SHA-256. Nie może się dowiedzieć, gdzie plik jest przechowywany, ani go odczytać.
+1. **Telefony jednego pomocnika to jedno gospodarstwo domowe.** Identyczne pliki są przechowywane raz. Dlatego sparowany telefon może się dowiedzieć, że inny telefon już przesłał dany plik, i jak duży jest ten plik. Musi w tym celu mieć ten sam plik albo znać jego SHA-256. Telefon może się tego dowiedzieć także po nazwie, rozmiarze i dacie: gdy pliku, który wysłał, nie ma już tam, gdzie umieścił go pomocnik, pomocnik szuka pliku o tej samej nazwie, rozmiarze i dacie w całym folderze przesyłania, także w folderach innych telefonów. W obu przypadkach telefon nie może się dowiedzieć, gdzie plik jest przechowywany, ani go odczytać.
 2. **Każdy w sieci może otworzyć stronę stanu.** Pokazuje ona wersję pomocnika, rozmiar dysku i ilość wolnego miejsca, czy znaleziono Plex i jaka jest jego wersja, ile urządzeń jest sparowanych oraz ile plików jest przechowywanych i jaki jest ich łączny rozmiar. Adres, o który aplikacja pyta najpierw, `/api/v1/hello`, podaje też nazwę pomocnika i identyfikator serwera Plex. Żadne z nich nie pokazuje nazwy urządzenia, nazwy pliku, tokenu ani kodu parowania.
 3. **Kod parowania to sekret gospodarstwa domowego.** Identyfikator urządzenia to losowa wartość, którą znają tylko urządzenie i pomocnik. Kto ma kod parowania i ten identyfikator, może sparować się jako to urządzenie. Gdy ktoś opuszcza gospodarstwo domowe, zmień kod poleceniem `new-code`.
 4. **Bez `PLEX_URL` pomocnik ufa temu, co odpowiada jako Plex.** Sprawdza hosta Dockera, bramę kontenera, `127.0.0.1` i kontener o nazwie `plex` i wybiera pierwszy, który odpowiada jak Plex. Ustaw `PLEX_URL`, aby przypisać go na stałe do swojego serwera.
