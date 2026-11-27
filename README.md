@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Beta.** This is the server half of Camera Upload, a beta feature of the [Phlix](https://phlixapp.com) app for iPhone and iPad. The other half is in Phlix 1.0.21 or later, under Settings > Camera Upload. If the App Store does not offer that version yet, it is on its way.
+**Beta.** This is the server half of Camera Upload, a beta feature of the [Phlix](https://phlixapp.com) app for iPhone and iPad. The other half is in Phlix 1.0.21 or later, under Settings > Camera Upload. That version is on the App Store.
 
 **Setup guide with pictures: https://phlixapp.com/camera-upload/**
 
@@ -46,7 +46,7 @@ Camera Upload is a beta, and the app marks it Beta. Keep your own backup of anyt
   - On Ubuntu, if you installed Docker with `sudo apt install docker.io`, add Compose with `sudo apt install docker-compose-v2`. Ubuntu 22.04 and later have that package.
   - Docker from a Snap cannot start the helper. Ubuntu Server offers that Snap while it installs. To check, run `snap list docker`. If it lists docker, see [Docker Compose says "bind source path does not exist"](#docker-compose-says-bind-source-path-does-not-exist).
 - A photo library in Plex.
-- Phlix 1.0.21 or later on an iPhone or iPad. To check, open Settings in Phlix: from 1.0.21 it has a Camera Upload row, marked Beta. If the App Store does not offer that version yet, it is on its way.
+- Phlix 1.0.21 or later on an iPhone or iPad. To check, open Settings in Phlix: from 1.0.21 it has a Camera Upload row, marked Beta. That version is on the App Store.
 - The phone and the server on the same home network.
 
 The image runs on 64-bit Intel and AMD, on 64-bit Arm, and on 32-bit Arm (ARMv7). It holds one variant for each, and Docker picks the one for your machine by itself. [The image's page on GitHub](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) also lists `unknown/unknown`. That is not a variant: it is the record of how the image was built and what is in it.
@@ -341,7 +341,7 @@ Camera Uploads/
 - **The same photo from two phones** is stored once. The helper compares the contents of the files, not their names. The photo stays in the folder of the phone that sent it first.
 - **A photo counts as backed up** only while its file is in the upload folder. If you delete a file, or a device's whole folder, and the photo is still on the device, Phlix uploads it again. It checks when you open the Camera Upload screen, and from time to time while it backs up at home.
 - **Sort files into any folders** inside the upload folder, keeping their names: Phlix finds them there. A device's folder you rename is followed, and new photos go into it. A file you rename, or move out of the upload folder, is uploaded again. A file you edit still counts. Nothing is ever overwritten.
-- **If a file keeps leaving the upload folder soon after each upload**, for example because a program on the server moves new files away, Phlix sends it again three times at most, then lists it under Can't Be Backed Up. A photo whose folder you deleted is never listed there: Phlix sends it again each time. So a program that also removes the folders it empties is not noticed, and Phlix sends its photos again on every run: set such a program to leave the folders in place. When you connect the phone again, or delete the folder that held a listed photo, Phlix sends that photo again too. To keep a photo off the server, hide it in the Photos app: Phlix never uploads hidden photos.
+- **If a file keeps leaving the upload folder soon after each upload**, for example because a program on the server moves new files away, Phlix sends it again three times at most, then lists it under Can't Be Backed Up. A photo whose folder you deleted is never listed there: Phlix sends it again each time. So if such a program also removes the folders it empties, the three-times limit never applies, and Phlix uploads the same photos again each time it backs up. Set the program to leave the folders in place. When you connect the phone again, or delete the folder that held a listed photo, Phlix sends that photo again too. To keep a photo off the server, hide it in the Photos app: Phlix never uploads hidden photos.
 
 The helper accepts these file types and refuses everything else:
 
@@ -513,7 +513,7 @@ Run the check above first. Then try these, in this order. [NETWORKING.md](NETWOR
 | The phone is not on your home Wi-Fi. It may be on mobile data, on a guest Wi-Fi or on a VPN. | Connect the phone to the same network as the server. Phlix does not look for the helper over mobile data. |
 | iOS does not let Phlix reach devices on your network. Phlix then says "iOS is keeping Phlix off your local network. Turn on Local Network for Phlix in Settings, then try again." | On the iPhone, open Settings > Apps > Phlix and switch Local Network on. |
 | The helper is on another address or port than Plex. | Type the helper's address into the app, for example `https://192.168.1.10:7459`. |
-| Phlix is older than 1.0.21. Its Settings then have no Camera Upload row. | Update Phlix to 1.0.21 or later, when the App Store offers it. |
+| Phlix is older than 1.0.21. Its Settings then have no Camera Upload row. | Update Phlix to 1.0.21 or later from the App Store. |
 
 ### The browser cannot open the status page
 

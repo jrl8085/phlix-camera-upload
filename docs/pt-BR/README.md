@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Beta.** Esta é a parte do servidor do Upload da Câmera, um recurso beta do app [Phlix](https://phlixapp.com) para iPhone e iPad. A outra parte está no Phlix 1.0.21 ou posterior, em Ajustes > Upload da Câmera. Se a App Store ainda não oferecer essa versão, ela está a caminho.
+**Beta.** Esta é a parte do servidor do Upload da Câmera, um recurso beta do app [Phlix](https://phlixapp.com) para iPhone e iPad. A outra parte está no Phlix 1.0.21 ou posterior, em Ajustes > Upload da Câmera. Essa versão está disponível na App Store.
 
 **Guia de configuração com imagens: https://phlixapp.com/camera-upload/**
 
@@ -23,7 +23,7 @@ O Upload da Câmera é um beta, e o app o marca com BETA. Mantenha seu próprio 
 - O Phlix pode enviar uma notificação quando tudo estiver com backup: ative Avisar ao Terminar o Backup.
 - Você escolhe o que entra no backup. Incluir Vídeos começa ativado. Incluir Capturas de Tela começa desativado. Fazer Backup pode ser definido como Tudo neste dispositivo ou como Só fotos novas.
 - Com o Phlix aberto, as fotos novas são enviadas sozinhas. Com o Phlix fechado, o iOS permite que ele continue em períodos curtos, principalmente enquanto o dispositivo carrega.
-- Cada foto é enviada uma única vez, como ela aparece no app Fotos naquele momento. Uma foto editada é enviada editada. Uma Live Photo é enviada como foto estática.
+- Cada foto é enviada como ela aparece no app Fotos naquele momento. Uma foto editada é enviada editada. Uma Live Photo é enviada como foto estática.
 - No servidor, cada dispositivo tem a própria pasta, com uma pasta para cada ano e cada mês. Um arquivo mantém o nome e a data. A mesma foto vinda de dois dispositivos é armazenada uma vez só. Nada jamais é sobrescrito.
 - Quando o servidor pertence à sua conta Plex, o Phlix pede ao Plex que verifique a biblioteca assim que suas fotos chegam, para que elas apareçam no Plex.
 - Ele nunca apaga nem altera nada no dispositivo. É uma cópia de mão única.
@@ -46,7 +46,7 @@ O Upload da Câmera é um beta, e o app o marca com BETA. Mantenha seu próprio 
   - No Ubuntu, se você instalou o Docker com `sudo apt install docker.io`, adicione o Compose com `sudo apt install docker-compose-v2`. O Ubuntu 22.04 e posteriores têm esse pacote.
   - O Docker instalado como Snap não consegue iniciar o auxiliar. O Ubuntu Server oferece esse Snap durante a instalação. Para conferir, execute `snap list docker`. Se aparecer docker, veja [O Docker Compose diz “bind source path does not exist”](#o-docker-compose-diz-bind-source-path-does-not-exist-o-caminho-de-origem-não-existe).
 - Uma biblioteca de fotos no Plex.
-- O Phlix 1.0.21 ou posterior em um iPhone ou iPad. Para conferir, abra Ajustes no Phlix: a partir da 1.0.21, há uma linha Upload da Câmera, marcada com BETA. Se a App Store ainda não oferecer essa versão, ela está a caminho.
+- O Phlix 1.0.21 ou posterior em um iPhone ou iPad. Para conferir, abra Ajustes no Phlix: a partir da 1.0.21, há uma linha Upload da Câmera, marcada com BETA. Essa versão está disponível na App Store.
 - O celular e o servidor na mesma rede de casa.
 
 A imagem roda em Intel e AMD de 64 bits, em Arm de 64 bits e em Arm de 32 bits (ARMv7). Ela traz uma variante para cada um, e o Docker escolhe sozinho a da sua máquina. [A página da imagem no GitHub](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) também lista `unknown/unknown`. Isso não é uma variante: é o registro de como a imagem foi construída e do que há nela.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **A pasta do dispositivo** recebe o nome quando o dispositivo é emparelhado. Se dois dispositivos pedirem o mesmo nome, o segundo recebe um número, como `iPhone 2`. Um dispositivo emparelhado de novo mantém a sua pasta.
+- **A pasta do dispositivo** recebe o nome quando o dispositivo é emparelhado. Se dois dispositivos pedirem o mesmo nome, o segundo recebe um número, como `iPhone 2`. Um dispositivo emparelhado de novo mantém a sua pasta, a menos que você digite outro nome no Phlix: aí as fotos novas dele vão para uma pasta com esse nome.
 - **O ano e o mês** vêm da própria data da foto, no horário local do celular. Uma foto sem data é arquivada na data do upload.
 - **O arquivo** mantém o nome que tinha no celular. O auxiliar também ajusta a data de modificação do arquivo para a data da foto.
 - **Duas fotos diferentes com o mesmo nome** são mantidas. A segunda recebe um número: `IMG_1234 (2).HEIC`.
 - **A mesma foto vinda de dois celulares** é armazenada uma vez só. O auxiliar compara o conteúdo dos arquivos, não os nomes. A foto fica na pasta do celular que a enviou primeiro.
-- **Arquivos que você move ou apaga** no servidor não são pedidos de novo. O auxiliar mantém a própria lista do que cada celular já enviou.
+- **Uma foto só fica com backup** enquanto o arquivo dela estiver na pasta de upload. Se você apagar um arquivo, ou a pasta inteira de um dispositivo, e a foto ainda estiver no dispositivo, o Phlix a envia de novo. Ele verifica isso quando você abre a tela do Upload da Câmera e, de tempos em tempos, enquanto faz o backup em casa.
+- **Organize os arquivos em quaisquer pastas** dentro da pasta de upload, mantendo os nomes: o Phlix os encontra lá. O auxiliar acompanha a pasta de um dispositivo mesmo que você a renomeie, e as fotos novas vão para ela. Um arquivo que você renomear, ou tirar da pasta de upload, é enviado de novo. Um arquivo que você editar continua contando. Nada jamais é sobrescrito.
+- **Se um arquivo continua sumindo da pasta de upload logo depois de cada upload**, por exemplo porque um programa no servidor move os arquivos novos para outro lugar, o Phlix o envia de novo no máximo três vezes e depois o lista em Backup Impossível. Uma foto cuja pasta você apagou nunca aparece ali: o Phlix a envia de novo toda vez. Então, se um programa desses também remove as pastas que esvazia, o limite de três vezes nunca se aplica, e o Phlix envia as mesmas fotos de novo a cada backup. Configure o programa para deixar as pastas no lugar. Quando você conecta o celular de novo, ou apaga a pasta que continha uma foto listada, o Phlix também envia essa foto de novo. Para manter uma foto fora do servidor, oculte-a no app Fotos: o Phlix nunca envia fotos ocultas.
 
 O auxiliar aceita estes tipos de arquivo e recusa todo o resto:
 
@@ -361,7 +363,7 @@ O auxiliar funciona sem nenhuma configuração. Para mudar uma, abra o `docker-c
 | `PAIRING` | `auto` | Quem pode emparelhar. `auto`: o proprietário do servidor Plex emparelha sem código, e todos os outros digitam o código de emparelhamento. `code`: todos digitam o código. `plex`: só o proprietário do servidor Plex pode emparelhar. |
 | `PAIRING_CODE` | vazio | O seu próprio código de emparelhamento, com pelo menos 6 letras ou algarismos. Quando está vazio, o auxiliar cria um código na primeira inicialização e o mantém. |
 | `NAME` | `Phlix Camera Upload` | O nome que o app e a página de status mostram para este auxiliar. No máximo 60 caracteres. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | As pastas que o auxiliar cria dentro da pasta de upload. Você pode usar `{device}`, `{year}`, `{month}` e `{day}`. Nenhuma pasta pode começar com ponto. Com uma `/` sozinha, todos os arquivos vão direto para a pasta de upload. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | As pastas que o auxiliar cria dentro da pasta de upload. Você pode usar `{device}`, `{year}`, `{month}` e `{day}`. Nenhuma pasta pode começar com ponto. Com uma `/` sozinha, todos os arquivos vão direto para a pasta de upload. O auxiliar só acompanha a pasta renomeada de um dispositivo quando `{device}` é uma pasta própria, sem uma data antes, como no padrão. |
 | `MIN_FREE_GB` | `2` | O auxiliar recusa um upload que deixaria no disco menos GB livres do que este valor. Ele conta os uploads que ainda estão chegando, então vários uploads ao mesmo tempo não conseguem levar o disco abaixo desse limite. De 0 a 1000000. |
 | `MAX_UPLOAD_GB` | `50` | O maior arquivo individual que o auxiliar aceita, em GB. De 0.001 a 1000000. |
 | `EXTRA_EXTENSIONS` | vazio | Mais tipos de arquivo a aceitar, separados por vírgulas, como `insp,lrv`. Cada um tem de 1 a 10 letras ou algarismos. |
@@ -390,11 +392,11 @@ A imagem também define `PHLIX_CONTAINER=1`. Com isso, o auxiliar se recusa a in
 3. No `docker-compose.yml`, mude a linha que começa com `source:` para a nova pasta.
 4. Execute `docker compose up -d`.
 
-As fotos enviadas antes ficam onde estão, e os celulares não as enviam de novo. Se quiser que elas fiquem na nova pasta, mova-as entre o passo 2 e o passo 3: mova tudo o que está dentro da antiga pasta de upload para a nova, mantendo as pastas internas como estão.
+Entre o passo 2 e o passo 3, mova tudo o que está dentro da antiga pasta de upload para a nova, mantendo as pastas internas como estão. Os celulares enviam de novo cada foto que não estiver na nova pasta. Mova também a pasta oculta `.phlix-upload-tmp`. Para começar com uma pasta vazia, crie nela uma pasta chamada `.phlix-upload-tmp`: os celulares então enviam de novo cada foto que ainda está neles.
 
 ### O nome da pasta de um celular
 
-Deixe como está. O auxiliar continua colocando as fotos novas de um celular na pasta que o celular recebeu quando foi emparelhado. Se você renomear essa pasta no servidor, o auxiliar recria a pasta com o nome antigo na próxima foto. Emparelhar o celular de novo também não muda a pasta.
+Para renomear a pasta de um celular, renomeie-a no servidor. O auxiliar encontra a pasta com o novo nome e coloca ali as fotos novas do celular. Ou, no Phlix, escolha Desconectar, conecte de novo e digite o novo nome: as fotos novas então vão para uma pasta com esse nome, e as fotos que já estão no servidor ficam onde estão.
 
 ### A porta
 
@@ -402,7 +404,7 @@ Deixe como está. O auxiliar continua colocando as fotos novas de um celular na 
 2. Execute `docker compose up -d`.
 3. Informe a cada celular o endereço do auxiliar com a nova porta, por exemplo `https://192.168.1.10:8443`. O Phlix procura a porta 7459 por conta própria.
    - Um celular que ainda não foi emparelhado: no Phlix, abra Ajustes > Upload da Câmera e toque em Procurar o Auxiliar e depois em Digitar o Endereço do Auxiliar. Digite o endereço e toque em Verificar Este Endereço. Depois continue como em [Conecte seu iPhone](#conecte-seu-iphone), a partir do passo 4.
-   - Um celular já emparelhado mantém o endereço antigo, e a tela do Upload da Câmera dele não tem campo para um novo. Nessa tela, escolha antes Desconectar. Depois faça o que diz o item acima. Quem não é o proprietário do servidor Plex digita o código de emparelhamento de novo. O celular mantém a sua pasta, e nada é enviado duas vezes. O Phlix pergunta de novo o que incluir no backup, com as escolhas que você fez antes já marcadas.
+   - Um celular já emparelhado mantém o endereço antigo, e a tela do Upload da Câmera dele não tem campo para um novo. Nessa tela, escolha antes Desconectar. Depois faça o que diz o item acima. Quem não é o proprietário do servidor Plex digita o código de emparelhamento de novo. Deixe o nome da pasta como o Phlix mostra: o celular mantém a sua pasta, e nada é enviado duas vezes. O Phlix pergunta de novo o que incluir no backup, com as escolhas que você fez antes já marcadas.
 
 ### Outra máquina
 
@@ -511,7 +513,7 @@ Primeiro, execute a verificação acima. Depois tente estes itens, nesta ordem. 
 | O celular não está no Wi-Fi de casa. Ele pode estar nos dados celulares, em um Wi-Fi de convidados ou em uma VPN. | Conecte o celular à mesma rede do servidor. O Phlix não procura o auxiliar pelos dados celulares. |
 | O iOS não deixa o Phlix alcançar os dispositivos da sua rede. O Phlix então diz “O iOS está impedindo o Phlix de acessar sua rede local. Ative a Rede Local para o Phlix em Ajustes e tente novamente.” | No iPhone, abra Ajustes > Apps > Phlix e ative Rede Local. |
 | O auxiliar está em outro endereço ou porta que não os do Plex. | Digite o endereço do auxiliar no app, por exemplo `https://192.168.1.10:7459`. |
-| O Phlix é anterior à 1.0.21. Os Ajustes dele então não têm a linha Upload da Câmera. | Atualize o Phlix para a 1.0.21 ou posterior, quando a App Store oferecer essa versão. |
+| O Phlix é anterior à 1.0.21. Os Ajustes dele então não têm a linha Upload da Câmera. | Atualize o Phlix para a 1.0.21 ou posterior pela App Store. |
 
 ### O navegador não consegue abrir a página de status
 
@@ -593,6 +595,12 @@ Primeiro descubra se os arquivos estão chegando. A página de status mostra `Fi
 | --- | --- |
 | O contêiner foi iniciado sem uma pasta em `/photos`, em `/config` ou nos dois. O auxiliar então se recusa a iniciar: os uploads ficariam dentro do contêiner e se perderiam na próxima atualização. | Inicie o auxiliar com as duas pastas, como no arquivo Compose ou no comando `docker run` acima. |
 | As duas pastas estão montadas e a mensagem continua aparecendo. Isso é raro. Pode acontecer quando o Docker guarda os próprios dados no mesmo disco das suas pastas e não usa um sistema de arquivos separado para os contêineres. | No `docker-compose.yml`, adicione a linha `ALLOW_UNMOUNTED: "1"` abaixo de `environment:` e execute `docker compose up -d`. Depois envie uma foto e confira se o arquivo está na sua pasta de upload no servidor. |
+
+### O auxiliar não inicia; o log dele diz que a pasta de upload está vazia
+
+| Causa | Solução |
+| --- | --- |
+| O auxiliar já tinha armazenado fotos na pasta de upload, e agora a pasta está vazia. Normalmente o compartilhamento ou o disco que a contém ainda não foi montado. O auxiliar então espera por ele: o Docker continua iniciando o auxiliar de novo, e ele inicia sozinho assim que a pasta volta. | Verifique se o compartilhamento ou o disco está montado. Se você esvaziou a pasta de propósito, crie nela uma pasta chamada `.phlix-upload-tmp`, por exemplo `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. O auxiliar então inicia, e os celulares enviam de novo cada foto que ainda está neles. No Unraid, inicie o contêiner de novo na aba Docker. |
 
 ### O emparelhamento diz que houve tentativas demais
 

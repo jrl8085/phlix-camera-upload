@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Wersja beta.** To serwerowa część funkcji Przesyłanie z aparatu, którą aplikacja [Phlix](https://phlixapp.com) na iPhone’a i iPada oferuje w wersji beta. Druga część jest w Phlix w wersji 1.0.21 lub nowszej, w sekcji Ustawienia > Przesyłanie z aparatu. Jeśli App Store nie oferuje jeszcze tej wersji, jest już w drodze.
+**Wersja beta.** To serwerowa część funkcji Przesyłanie z aparatu, którą aplikacja [Phlix](https://phlixapp.com) na iPhone’a i iPada oferuje w wersji beta. Druga część jest w Phlix w wersji 1.0.21 lub nowszej, w sekcji Ustawienia > Przesyłanie z aparatu. Ta wersja jest dostępna w App Store.
 
 **Instrukcja konfiguracji z ilustracjami: https://phlixapp.com/camera-upload/**
 
@@ -23,7 +23,7 @@ Przesyłanie z aparatu jest w wersji beta, a aplikacja oznacza je jako beta. Mie
 - Phlix może wysłać powiadomienie, gdy wszystko jest w kopii zapasowej: włącz Powiadom o ukończeniu kopii.
 - To Ty wybierasz, co trafia do kopii zapasowej. Przełącznik Uwzględnij wideo jest na początku włączony. Przełącznik Uwzględnij zrzuty ekranu jest na początku wyłączony. W wierszu Zakres kopii wybierasz Wszystko z tego urządzenia albo Tylko nowe zdjęcia.
 - Gdy Phlix jest otwarty, nowe zdjęcia przesyłają się same. Gdy Phlix jest zamknięty, iOS pozwala mu kontynuować w krótkich seriach, głównie podczas ładowania urządzenia.
-- Każde zdjęcie jest przesyłane raz, w takiej postaci, jaką ma w tym momencie w Zdjęciach. Edytowane zdjęcie jest przesyłane po edycji. Zdjęcie Live Photo jest przesyłane jako nieruchome zdjęcie.
+- Każde zdjęcie jest przesyłane w takiej postaci, jaką ma w tym momencie w Zdjęciach. Edytowane zdjęcie jest przesyłane po edycji. Zdjęcie Live Photo jest przesyłane jako nieruchome zdjęcie.
 - Na serwerze każde urządzenie ma własny folder, a w nim folder na każdy rok i każdy miesiąc. Plik zachowuje swoją nazwę i datę. To samo zdjęcie z dwóch urządzeń jest przechowywane raz. Nic nigdy nie jest nadpisywane.
 - Gdy serwer należy do Twojego konta Plex, Phlix po dotarciu zdjęć prosi Plex o skanowanie, żeby pojawiły się w Plex.
 - Nigdy niczego nie usuwa ani nie zmienia na urządzeniu. To kopiowanie w jedną stronę.
@@ -46,7 +46,7 @@ Przesyłanie z aparatu jest w wersji beta, a aplikacja oznacza je jako beta. Mie
   - W Ubuntu: jeśli Docker został zainstalowany poleceniem `sudo apt install docker.io`, dodaj Compose poleceniem `sudo apt install docker-compose-v2`. Ubuntu 22.04 i nowsze mają ten pakiet.
   - Docker zainstalowany jako Snap nie może uruchomić pomocnika. Ubuntu Server proponuje ten Snap podczas instalacji. Aby to sprawdzić, uruchom `snap list docker`. Jeśli na liście jest docker, zobacz [Docker Compose zgłasza „bind source path does not exist”](#docker-compose-zgłasza-bind-source-path-does-not-exist).
 - Biblioteka zdjęć w Plex.
-- Phlix 1.0.21 lub nowszy na iPhonie lub iPadzie. Aby to sprawdzić, otwórz Ustawienia w Phlix: od wersji 1.0.21 jest tam wiersz Przesyłanie z aparatu oznaczony jako beta. Jeśli App Store nie oferuje jeszcze tej wersji, jest już w drodze.
+- Phlix 1.0.21 lub nowszy na iPhonie lub iPadzie. Aby to sprawdzić, otwórz Ustawienia w Phlix: od wersji 1.0.21 jest tam wiersz Przesyłanie z aparatu oznaczony jako beta. Ta wersja jest dostępna w App Store.
 - Telefon i serwer w tej samej sieci domowej.
 
 Obraz działa na 64-bitowych procesorach Intel i AMD, na 64-bitowych procesorach Arm i na 32-bitowych procesorach Arm (ARMv7). Zawiera po jednym wariancie dla każdego z nich, a Docker sam wybiera ten, który pasuje do Twojego komputera. [Strona obrazu na GitHubie](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) wymienia też `unknown/unknown`. To nie jest wariant, tylko zapis tego, jak obraz został zbudowany i co zawiera.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **Folder urządzenia** dostaje nazwę podczas parowania urządzenia. Jeśli dwa urządzenia poproszą o tę samą nazwę, drugie dostaje numer, na przykład `iPhone 2`. Urządzenie, które paruje się ponownie, zachowuje swój folder.
+- **Folder urządzenia** dostaje nazwę podczas parowania urządzenia. Jeśli dwa urządzenia poproszą o tę samą nazwę, drugie dostaje numer, na przykład `iPhone 2`. Urządzenie, które paruje się ponownie, zachowuje swój folder, chyba że wpiszesz w Phlix inną nazwę: wtedy jego nowe zdjęcia trafiają do folderu o tej nazwie.
 - **Rok i miesiąc** pochodzą z daty samego zdjęcia, w czasie lokalnym telefonu. Zdjęcie bez daty trafia pod datę przesłania.
 - **Plik** zachowuje nazwę, którą miał na telefonie. Pomocnik ustawia też czas modyfikacji pliku na datę zdjęcia.
 - **Dwa różne zdjęcia o tej samej nazwie** są zachowywane oba. Drugie dostaje numer: `IMG_1234 (2).HEIC`.
 - **To samo zdjęcie z dwóch telefonów** jest przechowywane raz. Pomocnik porównuje zawartość plików, a nie ich nazwy. Zdjęcie zostaje w folderze telefonu, który wysłał je jako pierwszy.
-- **Pliki, które przeniesiesz lub usuniesz** na serwerze, nie są wysyłane ponownie. Pomocnik prowadzi własną listę tego, co wysłał każdy telefon.
+- **Zdjęcie jest w kopii zapasowej** tylko dopóki jego plik jest w folderze przesyłania. Jeśli usuniesz plik albo cały folder urządzenia, a zdjęcie nadal jest na urządzeniu, Phlix prześle je ponownie. Phlix sprawdza to, gdy otwierasz ekran Przesyłanie z aparatu, i co jakiś czas podczas tworzenia kopii zapasowej w domu.
+- **Porządkuj pliki w dowolnych folderach** wewnątrz folderu przesyłania, bez zmiany ich nazw: Phlix je tam znajdzie. Pomocnik podąża za folderem urządzenia, któremu zmienisz nazwę, i nowe zdjęcia trafiają do niego. Plik, któremu zmienisz nazwę albo który przeniesiesz poza folder przesyłania, jest przesyłany ponownie. Plik, który edytujesz, nadal się liczy. Nic nigdy nie jest nadpisywane.
+- **Jeśli plik ciągle znika z folderu przesyłania wkrótce po każdym przesłaniu**, na przykład dlatego, że program na serwerze przenosi nowe pliki gdzie indziej, Phlix wysyła go ponownie najwyżej trzy razy, a potem umieszcza go na liście Nie można utworzyć kopii. Zdjęcie, którego folder został usunięty, nigdy się na niej nie pojawia: Phlix wysyła je ponownie za każdym razem. Jeśli więc taki program usuwa też foldery, które opróżnia, limit trzech razy nigdy nie obowiązuje, a Phlix przy każdym tworzeniu kopii zapasowej przesyła te same zdjęcia ponownie. Ustaw program tak, żeby zostawiał foldery na miejscu. Gdy ponownie połączysz telefon albo usuniesz folder, w którym było zdjęcie z tej listy, Phlix wyśle ponownie także to zdjęcie. Aby zdjęcie nie trafiło na serwer, ukryj je w aplikacji Zdjęcia: Phlix nigdy nie przesyła ukrytych zdjęć.
 
 Pomocnik przyjmuje te typy plików i odrzuca wszystkie inne:
 
@@ -361,7 +363,7 @@ Pomocnik działa bez żadnych ustawień. Aby zmienić któreś z nich, otwórz `
 | `PAIRING` | `auto` | Kto może się sparować. `auto`: właściciel serwera Plex paruje bez kodu, a wszyscy inni wpisują kod parowania. `code`: wszyscy wpisują kod. `plex`: sparować może się tylko właściciel serwera Plex. |
 | `PAIRING_CODE` | puste | Własny kod parowania, z co najmniej 6 liter lub cyfr. Gdy to ustawienie jest puste, pomocnik tworzy kod przy pierwszym uruchomieniu i go zachowuje. |
 | `NAME` | `Phlix Camera Upload` | Nazwa, którą aplikacja i strona stanu pokazują dla tego pomocnika. Najwyżej 60 znaków. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Foldery, które pomocnik tworzy w folderze przesyłania. Możesz użyć `{device}`, `{year}`, `{month}` i `{day}`. Nazwa żadnego folderu nie może zaczynać się od kropki. Przy samym `/` każdy plik trafia bezpośrednio do folderu przesyłania. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Foldery, które pomocnik tworzy w folderze przesyłania. Możesz użyć `{device}`, `{year}`, `{month}` i `{day}`. Nazwa żadnego folderu nie może zaczynać się od kropki. Przy samym `/` każdy plik trafia bezpośrednio do folderu przesyłania. Pomocnik podąża za folderem urządzenia, któremu zmienisz nazwę, tylko wtedy, gdy `{device}` jest osobnym folderem bez daty przed nim, jak w ustawieniu domyślnym. |
 | `MIN_FREE_GB` | `2` | Pomocnik odrzuca przesłanie, po którym na dysku zostałoby mniej wolnego miejsca niż tyle GB. Wlicza przesłania, które jeszcze trwają, więc kilka jednoczesnych przesłań nie obniży wolnego miejsca poniżej tej wartości. Od 0 do 1000000. |
 | `MAX_UPLOAD_GB` | `50` | Największy pojedynczy plik, który pomocnik przyjmuje, w GB. Od 0.001 do 1000000. |
 | `EXTRA_EXTENSIONS` | puste | Dodatkowe typy plików do przyjmowania, oddzielone przecinkami, na przykład `insp,lrv`. Każdy ma od 1 do 10 liter lub cyfr. |
@@ -390,11 +392,11 @@ Obraz ustawia też `PHLIX_CONTAINER=1`. Dzięki temu pomocnik odmawia uruchomien
 3. W `docker-compose.yml` zmień wiersz zaczynający się od `source:` na nowy folder.
 4. Uruchom `docker compose up -d`.
 
-Zdjęcia przesłane wcześniej zostają tam, gdzie są, a telefony nie wysyłają ich ponownie. Jeśli chcesz je mieć w nowym folderze, przenieś je między krokiem 2 a krokiem 3: przenieś całą zawartość starego folderu przesyłania do nowego i zachowaj wewnętrzne foldery bez zmian.
+Między krokiem 2 a krokiem 3 przenieś całą zawartość starego folderu przesyłania do nowego i zachowaj wewnętrzne foldery bez zmian. Telefony wysyłają ponownie każde zdjęcie, którego nie ma w nowym folderze. Przenieś też ukryty folder `.phlix-upload-tmp`. Aby zacząć od pustego folderu, utwórz w nim folder o nazwie `.phlix-upload-tmp`: telefony wyślą wtedy ponownie każde zdjęcie, które nadal na nich jest.
 
 ### Nazwa folderu telefonu
 
-Zostaw ją bez zmian. Pomocnik nadal umieszcza nowe zdjęcia telefonu w folderze, który telefon dostał podczas parowania. Jeśli zmienisz nazwę tego folderu na serwerze, przy następnym zdjęciu pomocnik ponownie utworzy folder o starej nazwie. Ponowne sparowanie telefonu też nie zmienia folderu.
+Aby zmienić nazwę folderu telefonu, zmień ją na serwerze. Pomocnik znajduje folder pod nową nazwą i umieszcza w nim nowe zdjęcia telefonu. Albo wybierz w Phlix Rozłącz, połącz się ponownie i wpisz nową nazwę: nowe zdjęcia trafiają wtedy do folderu o tej nazwie, a zdjęcia, które są już na serwerze, zostają tam, gdzie są.
 
 ### Port
 
@@ -402,7 +404,7 @@ Zostaw ją bez zmian. Pomocnik nadal umieszcza nowe zdjęcia telefonu w folderze
 2. Uruchom `docker compose up -d`.
 3. Podaj każdemu telefonowi adres pomocnika z nowym portem, na przykład `https://192.168.1.10:8443`. Phlix sam szuka portu 7459.
    - Telefon, który nie jest jeszcze sparowany: w Phlix otwórz Ustawienia > Przesyłanie z aparatu i stuknij Wyszukaj pomocnika, a potem Wpisz adres pomocnika. Wpisz adres i stuknij Sprawdź ten adres. Następnie postępuj jak w sekcji [Połącz iPhone’a](#połącz-iphonea), od kroku 4.
-   - Telefon, który jest już sparowany, zachowuje stary adres, a jego ekran Przesyłanie z aparatu nie ma pola na nowy. Na tym ekranie najpierw wybierz Rozłącz. Potem zrób to, co opisuje punkt powyżej. Każdy, kto nie jest właścicielem serwera Plex, ponownie wpisuje kod parowania. Telefon zachowuje swój folder i nic nie jest przesyłane dwa razy. Phlix ponownie pyta, co uwzględnić w kopii zapasowej, a wcześniejsze wybory są już ustawione.
+   - Telefon, który jest już sparowany, zachowuje stary adres, a jego ekran Przesyłanie z aparatu nie ma pola na nowy. Na tym ekranie najpierw wybierz Rozłącz. Potem zrób to, co opisuje punkt powyżej. Każdy, kto nie jest właścicielem serwera Plex, ponownie wpisuje kod parowania. Zostaw nazwę folderu, którą pokazuje Phlix: telefon zachowuje swój folder i nic nie jest przesyłane dwa razy. Phlix ponownie pyta, co uwzględnić w kopii zapasowej, a wcześniejsze wybory są już ustawione.
 
 ### Inny komputer
 
@@ -511,7 +513,7 @@ Najpierw uruchom kontrolę opisaną powyżej. Potem wypróbuj poniższe rozwiąz
 | Telefon nie jest w domowej sieci Wi-Fi. Może korzystać z danych komórkowych, sieci Wi-Fi dla gości albo VPN. | Połącz telefon z tą samą siecią co serwer. Phlix nie szuka pomocnika przez dane komórkowe. |
 | iOS nie pozwala aplikacji Phlix łączyć się z urządzeniami w Twojej sieci. Phlix wyświetla wtedy komunikat „iOS blokuje aplikacji Phlix dostęp do sieci lokalnej. Włącz Sieć lokalną dla Phlix w Ustawieniach, a potem spróbuj ponownie.” | Na iPhonie otwórz Ustawienia > Aplikacje > Phlix i włącz przełącznik Sieć lokalna. |
 | Pomocnik jest pod innym adresem lub na innym porcie niż Plex. | Wpisz adres pomocnika w aplikacji, na przykład `https://192.168.1.10:7459`. |
-| Phlix jest starszy niż 1.0.21. Jego Ustawienia nie mają wtedy wiersza Przesyłanie z aparatu. | Zaktualizuj Phlix do wersji 1.0.21 lub nowszej, gdy App Store ją udostępni. |
+| Phlix jest starszy niż 1.0.21. Jego Ustawienia nie mają wtedy wiersza Przesyłanie z aparatu. | Zaktualizuj Phlix do wersji 1.0.21 lub nowszej z App Store. |
 
 ### Przeglądarka nie może otworzyć strony stanu
 
@@ -593,6 +595,12 @@ Najpierw ustal, czy pliki docierają. Strona stanu pokazuje `Files stored`, a ek
 | --- | --- |
 | Kontener uruchomiono bez folderu w `/photos`, w `/config` albo bez obu. Pomocnik odmawia wtedy uruchomienia: przesłane pliki trafiłyby do wnętrza kontenera i przepadłyby przy następnej aktualizacji. | Uruchom pomocnika z oboma folderami, jak w pliku Compose lub w poleceniu `docker run` powyżej. |
 | Oba foldery są zamontowane, a komunikat nadal się pojawia. To rzadkie. Może się zdarzyć, gdy Docker trzyma własne dane na tym samym dysku co Twoje foldery i nie używa osobnego systemu plików dla kontenerów. | W `docker-compose.yml` dodaj wiersz `ALLOW_UNMOUNTED: "1"` pod `environment:` i uruchom `docker compose up -d`. Potem prześlij jedno zdjęcie i sprawdź, czy plik jest w folderze przesyłania na serwerze. |
+
+### Pomocnik się nie uruchamia; logi mówią, że folder przesyłania jest pusty
+
+| Przyczyna | Rozwiązanie |
+| --- | --- |
+| Pomocnik zapisywał już wcześniej zdjęcia w folderze przesyłania, a teraz folder jest pusty. Zwykle udział lub dysk, na którym się znajduje, nie jest jeszcze zamontowany. Pomocnik wtedy na niego czeka: Docker uruchamia go raz po raz, a gdy folder wróci, pomocnik uruchomi się sam. | Sprawdź, czy udział lub dysk jest zamontowany. Jeśli folder został celowo opróżniony, utwórz w nim folder o nazwie `.phlix-upload-tmp`, na przykład `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. Pomocnik się wtedy uruchomi, a telefony wyślą ponownie każde zdjęcie, które nadal na nich jest. W Unraid uruchom kontener ponownie na karcie Docker. |
 
 ### Parowanie zgłasza zbyt wiele prób
 

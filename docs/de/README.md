@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Beta.** Dies ist die Server-Hälfte von Kamera-Upload, einer Beta-Funktion der App [Phlix](https://phlixapp.com) für iPhone und iPad. Die andere Hälfte steckt in Phlix 1.0.21 oder neuer, unter Einstellungen > Kamera-Upload. Falls der App Store diese Version noch nicht anbietet, ist sie schon auf dem Weg.
+**Beta.** Dies ist die Server-Hälfte von Kamera-Upload, einer Beta-Funktion der App [Phlix](https://phlixapp.com) für iPhone und iPad. Die andere Hälfte steckt in Phlix 1.0.21 oder neuer, unter Einstellungen > Kamera-Upload. Diese Version ist im App Store erhältlich.
 
 **Einrichtungsanleitung mit Bildern: https://phlixapp.com/camera-upload/**
 
@@ -23,7 +23,7 @@ Kamera-Upload ist eine Beta, und die App kennzeichnet es mit BETA. Behalte ein e
 - Phlix kann eine Mitteilung senden, wenn alles im Backup ist: Aktiviere „Mitteilung, wenn fertig“.
 - Du wählst, was ins Backup kommt. „Videos einbeziehen“ ist anfangs an. „Bildschirmfotos einbeziehen“ ist anfangs aus. „Ins Backup“ steht auf „Alles auf diesem Gerät“ oder auf „Nur neue Fotos“.
 - Ist Phlix geöffnet, werden neue Fotos von selbst hochgeladen. Ist Phlix geschlossen, lässt iOS die App in kurzen Schüben weitermachen, meist während das Gerät lädt.
-- Jedes Foto wird einmal hochgeladen, so wie es in diesem Moment in „Fotos“ aussieht. Ein bearbeitetes Foto wird bearbeitet hochgeladen. Ein Live Photo wird als Standbild hochgeladen.
+- Jedes Foto wird so hochgeladen, wie es in diesem Moment in „Fotos“ aussieht. Ein bearbeitetes Foto wird bearbeitet hochgeladen. Ein Live Photo wird als Standbild hochgeladen.
 - Auf dem Server hat jedes Gerät einen eigenen Ordner, darin einen Ordner für jedes Jahr und jeden Monat. Eine Datei behält ihren Namen und ihr Datum. Dasselbe Foto von zwei Geräten wird einmal gespeichert. Nichts wird je überschrieben.
 - Gehört der Server deinem Plex-Konto, bittet Phlix Plex um einen Scan, sobald deine Fotos angekommen sind, damit sie in Plex erscheinen.
 - Es löscht oder ändert nie etwas auf dem Gerät. Es ist eine Kopie in nur eine Richtung.
@@ -46,7 +46,7 @@ Kamera-Upload ist eine Beta, und die App kennzeichnet es mit BETA. Behalte ein e
   - Hast du Docker unter Ubuntu mit `sudo apt install docker.io` installiert, füge Compose mit `sudo apt install docker-compose-v2` hinzu. Ubuntu 22.04 und neuer haben dieses Paket.
   - Docker aus einem Snap kann das Hilfsprogramm nicht starten. Ubuntu Server bietet diesen Snap während der Installation an. Zum Prüfen führe `snap list docker` aus. Wird docker aufgelistet, siehe [Docker Compose meldet „bind source path does not exist“](#docker-compose-meldet-bind-source-path-does-not-exist-der-quellpfad-existiert-nicht).
 - Eine Fotobibliothek in Plex.
-- Phlix 1.0.21 oder neuer auf einem iPhone oder iPad. Zum Prüfen öffne die Einstellungen in Phlix: Ab 1.0.21 gibt es dort eine Zeile „Kamera-Upload“ mit der Kennzeichnung BETA. Falls der App Store diese Version noch nicht anbietet, ist sie schon auf dem Weg.
+- Phlix 1.0.21 oder neuer auf einem iPhone oder iPad. Zum Prüfen öffne die Einstellungen in Phlix: Ab 1.0.21 gibt es dort eine Zeile „Kamera-Upload“ mit der Kennzeichnung BETA. Diese Version ist im App Store erhältlich.
 - Das Smartphone und den Server im selben Heimnetzwerk.
 
 Das Image läuft auf 64-Bit-Intel und -AMD, auf 64-Bit-Arm und auf 32-Bit-Arm (ARMv7). Es enthält für jede davon eine eigene Variante, und Docker wählt die für deinen Computer passende von selbst. [Die Seite des Images auf GitHub](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) führt außerdem `unknown/unknown` auf. Das ist keine Variante: Es ist der Nachweis darüber, wie das Image gebaut wurde und was es enthält.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **Der Ordner des Geräts** bekommt seinen Namen, wenn das Gerät koppelt. Wollen zwei Geräte denselben Namen, bekommt das zweite eine Nummer, etwa `iPhone 2`. Ein Gerät, das erneut koppelt, behält seinen Ordner.
+- **Der Ordner des Geräts** bekommt seinen Namen, wenn das Gerät koppelt. Wollen zwei Geräte denselben Namen, bekommt das zweite eine Nummer, etwa `iPhone 2`. Ein Gerät, das erneut koppelt, behält seinen Ordner, außer du gibst in Phlix einen anderen Namen ein: Dann landen seine neuen Fotos in einem Ordner mit diesem Namen.
 - **Jahr und Monat** kommen aus dem Datum des Fotos selbst, in der Ortszeit des Smartphones. Ein Foto ohne Datum wird unter dem Datum des Uploads abgelegt.
 - **Die Datei** behält den Namen, den sie auf dem Smartphone hatte. Das Hilfsprogramm setzt außerdem die Änderungszeit der Datei auf das Datum des Fotos.
 - **Zwei verschiedene Fotos mit demselben Namen** werden beide behalten. Das zweite bekommt eine Nummer: `IMG_1234 (2).HEIC`.
 - **Dasselbe Foto von zwei Smartphones** wird einmal gespeichert. Das Hilfsprogramm vergleicht den Inhalt der Dateien, nicht ihre Namen. Das Foto bleibt im Ordner des Smartphones, das es zuerst gesendet hat.
-- **Dateien, die du auf dem Server verschiebst oder löschst**, werden nicht noch einmal angefordert. Das Hilfsprogramm führt eine eigene Liste darüber, was jedes Smartphone gesendet hat.
+- **Ein Foto ist nur so lange im Backup**, wie seine Datei im Upload-Ordner liegt. Wenn du eine Datei oder den ganzen Ordner eines Geräts löschst und das Foto noch auf dem Gerät ist, lädt Phlix es erneut hoch. Phlix prüft das, wenn du den Bildschirm „Kamera-Upload“ öffnest, und von Zeit zu Zeit während des Backups zu Hause.
+- **Sortiere Dateien in beliebige Ordner** im Upload-Ordner, ohne ihre Namen zu ändern: Phlix findet sie dort. Benennst du den Ordner eines Geräts um, folgt das Hilfsprogramm dem neuen Namen, und neue Fotos landen darin. Eine Datei, die du umbenennst oder aus dem Upload-Ordner verschiebst, wird erneut hochgeladen. Eine Datei, die du bearbeitest, zählt weiterhin. Nichts wird je überschrieben.
+- **Verschwindet eine Datei kurz nach jedem Upload wieder aus dem Upload-Ordner**, zum Beispiel weil ein Programm auf dem Server neue Dateien woandershin verschiebt, sendet Phlix sie höchstens dreimal erneut und führt sie dann unter „Backup nicht möglich“ auf. Ein Foto, dessen Ordner du gelöscht hast, erscheint dort nie: Phlix sendet es jedes Mal erneut. Entfernt ein solches Programm also auch die Ordner, die es leert, greift die Grenze von drei Versuchen nie, und Phlix lädt bei jedem Backup dieselben Fotos erneut hoch. Stelle das Programm so ein, dass es die Ordner an Ort und Stelle lässt. Wenn du das Smartphone neu verbindest oder den Ordner löschst, in dem ein dort aufgeführtes Foto lag, sendet Phlix auch dieses Foto erneut. Soll ein Foto nicht auf den Server, blende es in der App „Fotos“ aus: Phlix lädt ausgeblendete Fotos nie hoch.
 
 Das Hilfsprogramm nimmt diese Dateitypen an und lehnt alles andere ab:
 
@@ -361,7 +363,7 @@ Das Hilfsprogramm funktioniert ohne jede Einstellung. Um eine zu ändern, öffne
 | `PAIRING` | `auto` | Wer koppeln darf. `auto`: Die Person, der der Plex-Server gehört, koppelt ohne Code, und alle anderen geben den Kopplungscode ein. `code`: Alle geben den Code ein. `plex`: Nur die Person, der der Plex-Server gehört, darf koppeln. |
 | `PAIRING_CODE` | leer | Dein eigener Kopplungscode, mit mindestens 6 Buchstaben oder Ziffern. Ist die Einstellung leer, erzeugt das Hilfsprogramm beim ersten Start einen Code und behält ihn. |
 | `NAME` | `Phlix Camera Upload` | Der Name, den die App und die Statusseite für dieses Hilfsprogramm zeigen. Höchstens 60 Zeichen. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Die Ordner, die das Hilfsprogramm im Upload-Ordner anlegt. Du kannst `{device}`, `{year}`, `{month}` und `{day}` verwenden. Kein Ordner darf mit einem Punkt beginnen. Mit einem einzelnen `/` kommt jede Datei direkt in den Upload-Ordner. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Die Ordner, die das Hilfsprogramm im Upload-Ordner anlegt. Du kannst `{device}`, `{year}`, `{month}` und `{day}` verwenden. Kein Ordner darf mit einem Punkt beginnen. Mit einem einzelnen `/` kommt jede Datei direkt in den Upload-Ordner. Einem Geräteordner, den du umbenennst, folgt das Hilfsprogramm nur, wenn `{device}` ein eigener Ordner ohne Datum davor ist, wie in der Standardeinstellung. |
 | `MIN_FREE_GB` | `2` | Das Hilfsprogramm lehnt einen Upload ab, nach dem weniger als so viele GB auf dem Datenträger frei wären. Es rechnet die Uploads mit ein, die noch ankommen, sodass mehrere Uploads gleichzeitig den freien Platz nicht unter diese Grenze drücken können. Von 0 bis 1000000. |
 | `MAX_UPLOAD_GB` | `50` | Die größte einzelne Datei, die das Hilfsprogramm annimmt, in GB. Von 0.001 bis 1000000. |
 | `EXTRA_EXTENSIONS` | leer | Weitere Dateitypen, die angenommen werden, durch Kommas getrennt, etwa `insp,lrv`. Jeder besteht aus 1 bis 10 Buchstaben oder Ziffern. |
@@ -390,11 +392,11 @@ Das Image setzt außerdem `PHLIX_CONTAINER=1`. Damit verweigert das Hilfsprogram
 3. Ändere in `docker-compose.yml` die Zeile, die mit `source:` beginnt, auf den neuen Ordner.
 4. Führe `docker compose up -d` aus.
 
-Fotos, die vorher hochgeladen wurden, bleiben, wo sie sind, und die Smartphones senden sie nicht noch einmal. Willst du sie im neuen Ordner haben, verschiebe sie zwischen Schritt 2 und Schritt 3: Verschiebe alles, was im alten Upload-Ordner liegt, in den neuen, und lass die Ordner darin, wie sie sind.
+Verschiebe zwischen Schritt 2 und Schritt 3 alles, was im alten Upload-Ordner liegt, in den neuen, und lass die Ordner darin, wie sie sind. Die Smartphones senden jedes Foto erneut, das nicht im neuen Ordner liegt. Verschiebe auch den versteckten Ordner `.phlix-upload-tmp`. Willst du mit einem leeren Ordner beginnen, lege darin einen Ordner namens `.phlix-upload-tmp` an: Die Smartphones senden dann jedes Foto erneut, das noch auf ihnen ist.
 
 ### Der Name des Ordners eines Smartphones
 
-Lass ihn, wie er ist. Das Hilfsprogramm legt die neuen Fotos eines Smartphones weiter in den Ordner, den das Smartphone beim Koppeln bekommen hat. Benennst du diesen Ordner auf dem Server um, legt das Hilfsprogramm für das nächste Foto den alten Namen wieder an. Auch erneutes Koppeln des Smartphones ändert den Ordner nicht.
+Um den Ordner eines Smartphones umzubenennen, benenne ihn auf dem Server um. Das Hilfsprogramm findet den Ordner unter seinem neuen Namen und legt die neuen Fotos des Smartphones dort ab. Oder wähle in Phlix „Trennen“, verbinde dich erneut und gib den neuen Namen ein: Neue Fotos landen dann in einem Ordner mit diesem Namen, und die Fotos, die schon auf dem Server sind, bleiben, wo sie sind.
 
 ### Der Port
 
@@ -402,7 +404,7 @@ Lass ihn, wie er ist. Das Hilfsprogramm legt die neuen Fotos eines Smartphones w
 2. Führe `docker compose up -d` aus.
 3. Gib jedem Smartphone die Adresse des Hilfsprogramms mit dem neuen Port, zum Beispiel `https://192.168.1.10:8443`. Phlix sucht von selbst nach Port 7459.
    - Ein Smartphone, das noch nicht gekoppelt ist: Öffne in Phlix Einstellungen > Kamera-Upload und tippe auf „Hilfsprogramm suchen“, dann auf „Adresse des Hilfsprogramms eingeben“. Gib die Adresse ein und tippe auf „Diese Adresse prüfen“. Mach dann weiter wie unter [Dein iPhone verbinden](#dein-iphone-verbinden), ab Schritt 4.
-   - Ein Smartphone, das schon gekoppelt ist, behält die alte Adresse, und sein Bildschirm „Kamera-Upload“ hat kein Feld für eine neue. Wähle auf diesem Bildschirm zuerst „Trennen“. Mach dann, was die Zeile darüber sagt. Wem der Plex-Server nicht gehört, der gibt den Kopplungscode erneut ein. Das Smartphone behält seinen Ordner, und nichts wird doppelt hochgeladen. Phlix fragt erneut, was ins Backup kommt, und deine bisherige Auswahl ist schon eingestellt.
+   - Ein Smartphone, das schon gekoppelt ist, behält die alte Adresse, und sein Bildschirm „Kamera-Upload“ hat kein Feld für eine neue. Wähle auf diesem Bildschirm zuerst „Trennen“. Mach dann, was die Zeile darüber sagt. Wem der Plex-Server nicht gehört, der gibt den Kopplungscode erneut ein. Lass den Ordnernamen so, wie Phlix ihn anzeigt: Das Smartphone behält seinen Ordner, und nichts wird doppelt hochgeladen. Phlix fragt erneut, was ins Backup kommt, und deine bisherige Auswahl ist schon eingestellt.
 
 ### Ein anderer Computer
 
@@ -511,7 +513,7 @@ Führe zuerst die Prüfung oben aus. Versuche dann diese Punkte, in dieser Reihe
 | Das Smartphone ist nicht in deinem WLAN zu Hause. Es ist vielleicht über mobile Daten verbunden, in einem Gast-WLAN oder in einem VPN. | Verbinde das Smartphone mit demselben Netzwerk wie den Server. Über mobile Daten sucht Phlix das Hilfsprogramm nicht. |
 | iOS lässt Phlix keine Geräte in deinem Netzwerk erreichen. Phlix meldet dann »iOS sperrt Phlix aus deinem lokalen Netzwerk aus. Aktiviere „Lokales Netzwerk“ für Phlix in den Einstellungen und versuche es dann erneut.« | Öffne auf dem iPhone Einstellungen > Apps > Phlix und schalte „Lokales Netzwerk“ ein. |
 | Das Hilfsprogramm hat eine andere Adresse oder einen anderen Port als Plex. | Gib die Adresse des Hilfsprogramms in der App ein, zum Beispiel `https://192.168.1.10:7459`. |
-| Phlix ist älter als 1.0.21. In seinen Einstellungen fehlt dann die Zeile „Kamera-Upload“. | Aktualisiere Phlix auf 1.0.21 oder neuer, sobald der App Store die Version anbietet. |
+| Phlix ist älter als 1.0.21. In seinen Einstellungen fehlt dann die Zeile „Kamera-Upload“. | Aktualisiere Phlix im App Store auf 1.0.21 oder neuer. |
 
 ### Der Browser öffnet die Statusseite nicht
 
@@ -593,6 +595,12 @@ Finde zuerst heraus, ob die Dateien ankommen. Die Statusseite zeigt `Files store
 | --- | --- |
 | Der Container wurde ohne einen Ordner unter `/photos` oder unter `/config` gestartet, oder ohne beide. Das Hilfsprogramm verweigert dann den Start: Uploads würden im Container landen und beim nächsten Update verloren gehen. | Starte das Hilfsprogramm mit beiden Ordnern, wie in der Compose-Datei oder im Befehl `docker run` oben. |
 | Beide Ordner sind eingebunden, und die Meldung erscheint trotzdem. Das ist selten. Es kann passieren, wenn Docker seine eigenen Daten auf demselben Datenträger wie deine Ordner ablegt und kein eigenes Dateisystem für Container verwendet. | Füge in `docker-compose.yml` unter `environment:` die Zeile `ALLOW_UNMOUNTED: "1"` hinzu und führe `docker compose up -d` aus. Lade dann ein Foto hoch und prüfe, ob die Datei in deinem Upload-Ordner auf dem Server liegt. |
+
+### Das Hilfsprogramm startet nicht; sein Protokoll meldet, dass der Upload-Ordner leer ist
+
+| Ursache | Lösung |
+| --- | --- |
+| Das Hilfsprogramm hat vorher schon Fotos im Upload-Ordner gespeichert, und jetzt ist der Ordner leer. Meist ist die Freigabe oder der Datenträger, auf dem er liegt, noch nicht eingebunden. Das Hilfsprogramm wartet dann darauf: Docker startet es immer wieder, und sobald der Ordner wieder da ist, startet es von selbst. | Prüfe, ob die Freigabe oder der Datenträger eingebunden ist. Hast du den Ordner absichtlich geleert, lege darin einen Ordner namens `.phlix-upload-tmp` an, zum Beispiel `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. Das Hilfsprogramm startet dann, und die Smartphones senden jedes Foto erneut, das noch auf ihnen ist. Unter Unraid starte den Container im Tab Docker erneut. |
 
 ### Das Koppeln meldet zu viele Versuche
 

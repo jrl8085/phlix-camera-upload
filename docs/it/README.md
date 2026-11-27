@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Beta.** Questa è la parte lato server di Caricamento da fotocamera, una funzione in beta dell’app [Phlix](https://phlixapp.com) per iPhone e iPad. L’altra parte si trova in Phlix 1.0.21 o successiva, in Impostazioni > Caricamento da fotocamera. Se l’App Store non offre ancora quella versione, è in arrivo.
+**Beta.** Questa è la parte lato server di Caricamento da fotocamera, una funzione in beta dell’app [Phlix](https://phlixapp.com) per iPhone e iPad. L’altra parte si trova in Phlix 1.0.21 o successiva, in Impostazioni > Caricamento da fotocamera. Quella versione è disponibile sull’App Store.
 
 **Guida alla configurazione con immagini: https://phlixapp.com/camera-upload/**
 
@@ -23,7 +23,7 @@ Il caricamento da fotocamera è in versione beta, e l’app lo contrassegna con 
 - Phlix può inviare una notifica quando il backup è completo: attiva “Avvisami a backup completato”.
 - Scegli tu cosa includere nel backup. “Includi video” è attivato all’inizio. “Includi screenshot” è disattivato all’inizio. “Backup di” è impostato su “Tutto sul dispositivo” o su “Solo nuove foto”.
 - Con Phlix aperto, le nuove foto si caricano da sole. Con Phlix chiuso, iOS gli permette di proseguire a brevi intervalli, soprattutto mentre il dispositivo è in carica.
-- Ogni foto viene caricata una sola volta, così come appare in Foto in quel momento. Una foto modificata viene caricata con le modifiche. Una Live Photo viene caricata come foto statica.
+- Ogni foto viene caricata così come appare in Foto in quel momento. Una foto modificata viene caricata con le modifiche. Una Live Photo viene caricata come foto statica.
 - Sul server, ogni dispositivo ha una sua cartella, con una cartella per ogni anno e per ogni mese. Un file conserva il suo nome e la sua data. La stessa foto proveniente da due dispositivi viene archiviata una sola volta. Nulla viene mai sovrascritto.
 - Quando il server appartiene al tuo account Plex, Phlix chiede a Plex di eseguire una scansione appena le foto sono arrivate, così compaiono in Plex.
 - Non elimina né modifica mai nulla sul dispositivo. È una copia in una sola direzione.
@@ -46,7 +46,7 @@ Il caricamento da fotocamera è in versione beta, e l’app lo contrassegna con 
   - Su Ubuntu, se hai installato Docker con `sudo apt install docker.io`, aggiungi Compose con `sudo apt install docker-compose-v2`. Ubuntu 22.04 e successivi hanno quel pacchetto.
   - Docker installato come Snap non può avviare l’assistente. Ubuntu Server propone questo Snap durante l’installazione. Per verificarlo, esegui `snap list docker`. Se nell’elenco compare docker, vedi [Docker Compose dice “bind source path does not exist”](#docker-compose-dice-bind-source-path-does-not-exist-il-percorso-di-origine-del-bind-non-esiste).
 - Una libreria di foto in Plex.
-- Phlix 1.0.21 o successiva su un iPhone o iPad. Per verificarlo, apri Impostazioni in Phlix: dalla 1.0.21 c’è una riga Caricamento da fotocamera, contrassegnata con BETA. Se l’App Store non offre ancora quella versione, è in arrivo.
+- Phlix 1.0.21 o successiva su un iPhone o iPad. Per verificarlo, apri Impostazioni in Phlix: dalla 1.0.21 c’è una riga Caricamento da fotocamera, contrassegnata con BETA. Quella versione è disponibile sull’App Store.
 - Il telefono e il server sulla stessa rete di casa.
 
 L’immagine funziona su Intel e AMD a 64 bit, su Arm a 64 bit e su Arm a 32 bit (ARMv7). Contiene una variante per ciascuno, e Docker sceglie da solo quella adatta al tuo computer. [La pagina dell’immagine su GitHub](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) elenca anche `unknown/unknown`. Non è una variante: è la registrazione di come è stata costruita l’immagine e di cosa contiene.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **La cartella del dispositivo** riceve il suo nome quando il dispositivo si abbina. Se due dispositivi chiedono lo stesso nome, il secondo riceve un numero, ad esempio `iPhone 2`. Un dispositivo che si abbina di nuovo mantiene la sua cartella.
+- **La cartella del dispositivo** riceve il suo nome quando il dispositivo si abbina. Se due dispositivi chiedono lo stesso nome, il secondo riceve un numero, ad esempio `iPhone 2`. Un dispositivo che si abbina di nuovo mantiene la sua cartella, a meno che tu non inserisca un altro nome in Phlix: in quel caso le sue nuove foto finiscono in una cartella con quel nome.
 - **L’anno e il mese** derivano dalla data della foto, nell’ora locale del telefono. Una foto senza data viene archiviata con la data del caricamento.
 - **Il file** mantiene il nome che aveva sul telefono. L’assistente imposta anche la data di modifica del file sulla data della foto.
 - **Due foto diverse con lo stesso nome** vengono conservate entrambe. La seconda riceve un numero: `IMG_1234 (2).HEIC`.
 - **La stessa foto da due telefoni** viene archiviata una sola volta. L’assistente confronta il contenuto dei file, non i nomi. La foto resta nella cartella del telefono che l’ha inviata per primo.
-- **I file che sposti o elimini** sul server non vengono richiesti di nuovo. L’assistente tiene un proprio elenco di ciò che ogni telefono ha inviato.
+- **Una foto risulta nel backup** solo finché il suo file si trova nella cartella dei caricamenti. Se elimini un file, o l’intera cartella di un dispositivo, e la foto è ancora sul dispositivo, Phlix la carica di nuovo. Phlix lo controlla quando apri la schermata Caricamento da fotocamera, e di tanto in tanto mentre esegue il backup a casa.
+- **Ordina i file in qualsiasi cartella** all’interno della cartella dei caricamenti, mantenendo i loro nomi: Phlix li trova lì. L’assistente segue la cartella di un dispositivo anche se la rinomini, e le nuove foto finiscono in quella cartella. Un file che rinomini, o che sposti fuori dalla cartella dei caricamenti, viene caricato di nuovo. Un file che modifichi continua a contare. Nulla viene mai sovrascritto.
+- **Se un file continua a sparire dalla cartella dei caricamenti poco dopo ogni caricamento**, ad esempio perché un programma sul server sposta altrove i nuovi file, Phlix lo invia di nuovo al massimo tre volte, poi lo elenca sotto “Backup non possibile”. Una foto di cui hai eliminato la cartella non compare mai lì: Phlix la invia di nuovo ogni volta. Quindi, se un programma del genere elimina anche le cartelle che svuota, il limite di tre volte non si applica mai, e Phlix carica di nuovo le stesse foto a ogni backup. Imposta il programma in modo che lasci le cartelle al loro posto. Quando connetti di nuovo il telefono, o elimini la cartella che conteneva una foto elencata, Phlix invia di nuovo anche quella foto. Per tenere una foto fuori dal server, nascondila nell’app Foto: Phlix non carica mai le foto nascoste.
 
 L’assistente accetta questi tipi di file e rifiuta tutto il resto:
 
@@ -361,7 +363,7 @@ L’assistente funziona senza alcuna impostazione. Per cambiarne una, apri `dock
 | `PAIRING` | `auto` | Chi può abbinarsi. `auto`: il proprietario del server Plex si abbina senza codice e tutti gli altri inseriscono il codice di abbinamento. `code`: tutti inseriscono il codice. `plex`: solo il proprietario del server Plex può abbinarsi. |
 | `PAIRING_CODE` | vuoto | Un codice di abbinamento scelto da te, di almeno 6 lettere o cifre. Quando è vuoto, l’assistente crea un codice al primo avvio e lo conserva. |
 | `NAME` | `Phlix Camera Upload` | Il nome che l’app e la pagina di stato mostrano per questo assistente. Al massimo 60 caratteri. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Le cartelle che l’assistente crea dentro la cartella dei caricamenti. Puoi usare `{device}`, `{year}`, `{month}` e `{day}`. Nessuna cartella può iniziare con un punto. Con una sola `/`, ogni file va direttamente nella cartella dei caricamenti. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Le cartelle che l’assistente crea dentro la cartella dei caricamenti. Puoi usare `{device}`, `{year}`, `{month}` e `{day}`. Nessuna cartella può iniziare con un punto. Con una sola `/`, ogni file va direttamente nella cartella dei caricamenti. L’assistente segue la cartella rinominata di un dispositivo solo quando `{device}` è una cartella a sé, senza una data prima, come nel valore predefinito. |
 | `MIN_FREE_GB` | `2` | L’assistente rifiuta un caricamento che lascerebbe sul disco meno di questi GB liberi. Conta anche i caricamenti ancora in arrivo, così più caricamenti contemporanei non possono far scendere lo spazio libero sotto questa soglia. Da 0 a 1000000. |
 | `MAX_UPLOAD_GB` | `50` | Il file singolo più grande che l’assistente accetta, in GB. Da 0.001 a 1000000. |
 | `EXTRA_EXTENSIONS` | vuoto | Altri tipi di file da accettare, separati da virgole, ad esempio `insp,lrv`. Ognuno ha da 1 a 10 lettere o cifre. |
@@ -390,11 +392,11 @@ L’immagine imposta anche `PHLIX_CONTAINER=1`. Con questa variabile, l’assist
 3. In `docker-compose.yml`, cambia la riga che inizia con `source:` indicando la nuova cartella.
 4. Esegui `docker compose up -d`.
 
-Le foto caricate in precedenza restano dove sono, e i telefoni non le inviano di nuovo. Se le vuoi nella nuova cartella, spostale tra il passaggio 2 e il passaggio 3: sposta tutto ciò che si trova nella vecchia cartella dei caricamenti in quella nuova, lasciando le cartelle interne così come sono.
+Tra il passaggio 2 e il passaggio 3, sposta tutto ciò che si trova nella vecchia cartella dei caricamenti in quella nuova, lasciando le cartelle interne così come sono. I telefoni inviano di nuovo ogni foto che non si trova nella nuova cartella. Sposta anche la cartella nascosta `.phlix-upload-tmp`. Per iniziare con una cartella vuota, crea al suo interno una cartella chiamata `.phlix-upload-tmp`: i telefoni inviano allora di nuovo ogni foto che hanno ancora.
 
 ### Il nome della cartella di un telefono
 
-Lascialo com’è. L’assistente continua a mettere le nuove foto di un telefono nella cartella che il telefono ha ricevuto al momento dell’abbinamento. Se rinomini quella cartella sul server, alla foto successiva l’assistente ricrea la cartella con il vecchio nome. Neanche abbinare di nuovo il telefono cambia la cartella.
+Per rinominare la cartella di un telefono, rinominala sul server. L’assistente trova la cartella con il suo nuovo nome e ci mette le nuove foto del telefono. Oppure, in Phlix, scegli “Disconnetti”, connettiti di nuovo e inserisci il nuovo nome: le nuove foto finiscono allora in una cartella con quel nome, e le foto già presenti sul server restano dove sono.
 
 ### La porta
 
@@ -402,7 +404,7 @@ Lascialo com’è. L’assistente continua a mettere le nuove foto di un telefon
 2. Esegui `docker compose up -d`.
 3. Indica a ogni telefono l’indirizzo dell’assistente con la nuova porta, ad esempio `https://192.168.1.10:8443`. Da solo, Phlix cerca soltanto la porta 7459.
    - Un telefono non ancora abbinato: in Phlix, apri Impostazioni > Caricamento da fotocamera e tocca “Cerca l’assistente”, poi “Inserisci l’indirizzo dell’assistente”. Scrivi l’indirizzo e tocca “Verifica questo indirizzo”. Poi continua come in [Collega il tuo iPhone](#collega-il-tuo-iphone), dal passaggio 4.
-   - Un telefono già abbinato mantiene il vecchio indirizzo, e la sua schermata Caricamento da fotocamera non ha un campo per uno nuovo. In quella schermata, scegli prima “Disconnetti”. Poi fai quello che dice la riga precedente. Chi non è il proprietario del server Plex inserisce di nuovo il codice di abbinamento. Il telefono mantiene la sua cartella, e nulla viene caricato due volte. Phlix chiede di nuovo cosa includere nel backup, con le scelte fatte in precedenza già impostate.
+   - Un telefono già abbinato mantiene il vecchio indirizzo, e la sua schermata Caricamento da fotocamera non ha un campo per uno nuovo. In quella schermata, scegli prima “Disconnetti”. Poi fai quello che dice la riga precedente. Chi non è il proprietario del server Plex inserisce di nuovo il codice di abbinamento. Lascia il nome della cartella così come lo mostra Phlix: il telefono mantiene la sua cartella, e nulla viene caricato due volte. Phlix chiede di nuovo cosa includere nel backup, con le scelte fatte in precedenza già impostate.
 
 ### Un altro computer
 
@@ -511,7 +513,7 @@ Prima esegui il controllo qui sopra. Poi prova quanto segue, in quest’ordine. 
 | Il telefono non è sulla rete Wi-Fi di casa. Potrebbe usare i dati cellulare, una rete Wi-Fi ospiti o una VPN. | Connetti il telefono alla stessa rete del server. Phlix non cerca l’assistente con i dati cellulare. |
 | iOS non permette a Phlix di raggiungere i dispositivi della tua rete. Phlix allora mostra “iOS impedisce a Phlix di accedere alla tua rete locale. Attiva Rete locale per Phlix in Impostazioni, poi riprova.” | Sull’iPhone, apri Impostazioni > App > Phlix e attiva Rete locale. |
 | L’assistente è su un indirizzo o una porta diversi da quelli di Plex. | Inserisci nell’app l’indirizzo dell’assistente, ad esempio `https://192.168.1.10:7459`. |
-| Phlix è precedente alla 1.0.21. In quel caso le sue Impostazioni non hanno la riga Caricamento da fotocamera. | Aggiorna Phlix alla 1.0.21 o successiva, quando l’App Store la offre. |
+| Phlix è precedente alla 1.0.21. In quel caso le sue Impostazioni non hanno la riga Caricamento da fotocamera. | Aggiorna Phlix alla 1.0.21 o successiva dall’App Store. |
 
 ### Il browser non apre la pagina di stato
 
@@ -593,6 +595,12 @@ Per prima cosa verifica se i file arrivano. La pagina di stato mostra `Files sto
 | --- | --- |
 | Il container è stato avviato senza una cartella su `/photos`, su `/config`, o su entrambi. L’assistente allora si rifiuta di avviarsi: i caricamenti finirebbero dentro il container e andrebbero persi al prossimo aggiornamento. | Avvia l’assistente con entrambe le cartelle, come nel file Compose o nel comando `docker run` qui sopra. |
 | Entrambe le cartelle sono montate e il messaggio compare comunque. È raro. Può succedere quando Docker tiene i propri dati sullo stesso disco delle tue cartelle e non usa un file system separato per i container. | In `docker-compose.yml`, aggiungi la riga `ALLOW_UNMOUNTED: "1"` sotto `environment:` ed esegui `docker compose up -d`. Poi carica una foto e verifica che il file sia nella cartella dei caricamenti sul server. |
+
+### L’assistente non si avvia; il suo log dice che la cartella dei caricamenti è vuota
+
+| Causa | Rimedio |
+| --- | --- |
+| L’assistente aveva già archiviato foto nella cartella dei caricamenti, e ora la cartella è vuota. Di solito la condivisione o il disco che la contiene non è ancora montato. L’assistente allora lo aspetta: Docker continua ad avviarlo di nuovo, e si avvia da solo appena la cartella torna disponibile. | Controlla che la condivisione o il disco sia montato. Se hai svuotato la cartella di proposito, crea al suo interno una cartella chiamata `.phlix-upload-tmp`, ad esempio `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. L’assistente allora si avvia, e i telefoni inviano di nuovo ogni foto che hanno ancora. Su Unraid, avvia di nuovo il container nella scheda Docker. |
 
 ### L’abbinamento dice che ci sono stati troppi tentativi
 

@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Beeta.** Tämä on Kameralatauksen palvelinpuoli. Kameralataus on iPhonen ja iPadin [Phlix](https://phlixapp.com)-sovelluksen beetaominaisuus. Toinen puoli on Phlixin versiossa 1.0.21 tai uudemmassa, kohdassa Asetukset > Kameralataus. Jos App Store ei vielä tarjoa tätä versiota, se on tulossa.
+**Beeta.** Tämä on Kameralatauksen palvelinpuoli. Kameralataus on iPhonen ja iPadin [Phlix](https://phlixapp.com)-sovelluksen beetaominaisuus. Toinen puoli on Phlixin versiossa 1.0.21 tai uudemmassa, kohdassa Asetukset > Kameralataus. Tämä versio on saatavilla App Storesta.
 
 **Käyttöönotto-opas kuvineen: https://phlixapp.com/camera-upload/**
 
@@ -23,7 +23,7 @@ Kameralataus on beetavaiheessa, ja sovellus merkitsee sen beetaksi. Säilytä om
 - Phlix voi lähettää ilmoituksen, kun kaikki on varmuuskopioitu: laita päälle ”Ilmoita, kun kaikki on varmuuskopioitu”.
 - Sinä valitset, mitä varmuuskopioidaan. Sisällytä videot on aluksi päällä. Sisällytä näyttökuvat on aluksi pois päältä. Varmuuskopioi-kohdan valinta on Kaikki tässä laitteessa tai Vain uudet kuvat.
 - Kun Phlix on auki, uudet kuvat lähetetään itsestään. Kun Phlix on suljettu, iOS antaa sen jatkaa lyhyissä jaksoissa, enimmäkseen silloin kun laite latautuu.
-- Jokainen kuva lähetetään kerran sellaisena kuin se sillä hetkellä näkyy Kuvat-apissa. Muokattu kuva lähetetään muokattuna. Live Photo -kuvasta lähetetään pysäytyskuva.
+- Jokainen kuva lähetetään sellaisena kuin se sillä hetkellä näkyy Kuvat-apissa. Muokattu kuva lähetetään muokattuna. Live Photo -kuvasta lähetetään pysäytyskuva.
 - Palvelimella jokaisella laitteella on oma kansionsa, ja siinä kansio kullekin vuodelle ja kuukaudelle. Tiedosto säilyttää nimensä ja päivämääränsä. Sama kuva kahdesta laitteesta tallennetaan kerran. Mitään ei koskaan korvata.
 - Kun Plex-tilisi omistaa palvelimen, Phlix pyytää Plexiä skannaamaan kirjaston, kun kuvasi ovat perillä, jotta ne näkyvät Plexissä.
 - Se ei koskaan poista tai muuta mitään laitteella. Se on yksisuuntainen kopio.
@@ -46,7 +46,7 @@ Kameralataus on beetavaiheessa, ja sovellus merkitsee sen beetaksi. Säilytä om
   - Ubuntussa: jos asensit Dockerin komennolla `sudo apt install docker.io`, lisää Compose komennolla `sudo apt install docker-compose-v2`. Ubuntu 22.04:ssä ja uudemmissa on tämä paketti.
   - Snap-pakettina asennettu Docker ei pysty käynnistämään apuohjelmaa. Ubuntu Server tarjoaa tätä Snapia asennuksen aikana. Tarkista asia komennolla `snap list docker`. Jos se luettelee dockerin, katso [Docker Compose ilmoittaa ”bind source path does not exist”](#docker-compose-ilmoittaa-bind-source-path-does-not-exist).
 - Kuvakirjaston Plexissä.
-- Phlixin version 1.0.21 tai uudemman iPhonessa tai iPadissa. Tarkista avaamalla Phlixin Asetukset: versiosta 1.0.21 alkaen siellä on beetaksi merkitty Kameralataus-rivi. Jos App Store ei vielä tarjoa tätä versiota, se on tulossa.
+- Phlixin version 1.0.21 tai uudemman iPhonessa tai iPadissa. Tarkista avaamalla Phlixin Asetukset: versiosta 1.0.21 alkaen siellä on beetaksi merkitty Kameralataus-rivi. Tämä versio on saatavilla App Storesta.
 - Puhelimen ja palvelimen samassa kotiverkossa.
 
 Docker-levykuva toimii 64-bittisissä Intel- ja AMD-järjestelmissä, 64-bittisessä Armissa ja 32-bittisessä Armissa (ARMv7). Siinä on oma variantti kullekin, ja Docker valitsee itse koneellesi sopivan. [Levykuvan sivu GitHubissa](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) näyttää myös kohdan `unknown/unknown`. Se ei ole variantti: se on selvitys siitä, miten levykuva rakennettiin ja mitä siinä on.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **Laitteen kansio** saa nimensä, kun laite muodostaa parin. Jos kaksi laitetta pyytää samaa nimeä, jälkimmäinen saa numeron, esimerkiksi `iPhone 2`. Laite, joka muodostaa parin uudelleen, säilyttää kansionsa.
+- **Laitteen kansio** saa nimensä, kun laite muodostaa parin. Jos kaksi laitetta pyytää samaa nimeä, jälkimmäinen saa numeron, esimerkiksi `iPhone 2`. Laite, joka muodostaa parin uudelleen, säilyttää kansionsa, ellet kirjoita Phlixissä toista nimeä: silloin laitteen uudet kuvat menevät sen nimiseen kansioon.
 - **Vuosi ja kuukausi** tulevat kuvan omasta päivämäärästä puhelimen paikallisen ajan mukaan. Kuva, jolla ei ole päivämäärää, arkistoidaan lähetyspäivän mukaan.
 - **Tiedosto** säilyttää nimen, joka sillä oli puhelimessa. Apuohjelma asettaa myös tiedoston muokkausajaksi kuvan päivämäärän.
 - **Kahdesta eri kuvasta, joilla on sama nimi,** säilytetään molemmat. Jälkimmäinen saa numeron: `IMG_1234 (2).HEIC`.
 - **Sama kuva kahdesta puhelimesta** tallennetaan kerran. Apuohjelma vertaa tiedostojen sisältöä, ei niiden nimiä. Kuva jää sen puhelimen kansioon, joka lähetti sen ensin.
-- **Tiedostoja, jotka siirrät tai poistat** palvelimella, ei pyydetä uudelleen. Apuohjelma pitää omaa luetteloa siitä, mitä kukin puhelin on lähettänyt.
+- **Kuva lasketaan varmuuskopioiduksi** vain niin kauan kuin sen tiedosto on lähetyskansiossa. Jos poistat tiedoston tai laitteen koko kansion ja kuva on yhä laitteessa, Phlix lähettää sen uudelleen. Phlix tarkistaa tämän, kun avaat Kameralataus-näytön, ja aika ajoin varmuuskopioidessaan kotona.
+- **Järjestä tiedostoja mihin tahansa kansioihin** lähetyskansion sisällä niiden nimiä muuttamatta: Phlix löytää ne sieltä. Apuohjelma seuraa laitteen kansiota, jonka nimeät uudelleen, ja uudet kuvat menevät siihen. Tiedosto, jonka nimeät uudelleen tai siirrät pois lähetyskansiosta, lähetetään uudelleen. Tiedosto, jota muokkaat, lasketaan yhä. Mitään ei koskaan korvata.
+- **Jos tiedosto katoaa lähetyskansiosta yhä uudelleen pian jokaisen lähetyksen jälkeen**, esimerkiksi koska palvelimella oleva ohjelma siirtää uudet tiedostot muualle, Phlix lähettää sen uudelleen enintään kolme kertaa ja näyttää sen sitten kohdassa Ei voi varmuuskopioida. Kuva, jonka kansion olet poistanut, ei koskaan näy siellä: Phlix lähettää sen uudelleen joka kerta. Jos tällainen ohjelma siis poistaa myös tyhjentämänsä kansiot, kolmen kerran rajaa ei koskaan sovelleta, ja Phlix lähettää samat kuvat uudelleen jokaisella varmuuskopiointikerralla. Määritä ohjelma jättämään kansiot paikoilleen. Kun yhdistät puhelimen uudelleen tai poistat kansion, jossa siellä näkyvä kuva oli, Phlix lähettää myös sen kuvan uudelleen. Jos et halua kuvaa palvelimelle, kätke se Kuvat-apissa: Phlix ei koskaan lähetä kätkettyjä kuvia.
 
 Apuohjelma hyväksyy nämä tiedostotyypit ja hylkää kaiken muun:
 
@@ -361,7 +363,7 @@ Apuohjelma toimii ilman mitään asetuksia. Jos haluat muuttaa jotakin, avaa `do
 | `PAIRING` | `auto` | Kuka saa muodostaa parin. `auto`: Plex-palvelimen omistaja muodostaa parin ilman koodia, ja kaikki muut syöttävät parinmuodostuskoodin. `code`: kaikki syöttävät koodin. `plex`: vain Plex-palvelimen omistaja saa muodostaa parin. |
 | `PAIRING_CODE` | tyhjä | Oma parinmuodostuskoodisi, jossa on vähintään 6 kirjainta tai numeroa. Kun tämä on tyhjä, apuohjelma luo koodin ensimmäisellä käynnistyskerralla ja säilyttää sen. |
 | `NAME` | `Phlix Camera Upload` | Nimi, jonka sovellus ja tilasivu näyttävät tälle apuohjelmalle. Enintään 60 merkkiä. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Kansiot, jotka apuohjelma luo lähetyskansion sisään. Voit käyttää muuttujia `{device}`, `{year}`, `{month}` ja `{day}`. Mikään kansio ei saa alkaa pisteellä. Pelkällä `/`-merkillä jokainen tiedosto menee suoraan lähetyskansioon. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Kansiot, jotka apuohjelma luo lähetyskansion sisään. Voit käyttää muuttujia `{device}`, `{year}`, `{month}` ja `{day}`. Mikään kansio ei saa alkaa pisteellä. Pelkällä `/`-merkillä jokainen tiedosto menee suoraan lähetyskansioon. Apuohjelma seuraa laitteen kansiota, jonka nimeät uudelleen, vain kun `{device}` on oma kansionsa eikä sen edellä ole päivämäärää, kuten oletuksessa. |
 | `MIN_FREE_GB` | `2` | Apuohjelma hylkää lähetyksen, jonka jälkeen levylle jäisi vähemmän vapaata tilaa kuin näin monta gigatavua. Se laskee mukaan vielä saapumassa olevat lähetykset, joten useat samanaikaiset lähetykset eivät voi viedä levyä tämän rajan alle. Arvo 0–1000000. |
 | `MAX_UPLOAD_GB` | `50` | Suurin yksittäinen tiedosto, jonka apuohjelma hyväksyy, gigatavuina. Arvo 0.001–1000000. |
 | `EXTRA_EXTENSIONS` | tyhjä | Lisää hyväksyttäviä tiedostotyyppejä pilkuilla erotettuina, esimerkiksi `insp,lrv`. Kukin on 1–10 kirjainta tai numeroa. |
@@ -390,11 +392,11 @@ Levykuva asettaa myös `PHLIX_CONTAINER=1`. Silloin apuohjelma kieltäytyy käyn
 3. Muuta `docker-compose.yml`-tiedostossa `source:`-alkuinen rivi osoittamaan uuteen kansioon.
 4. Aja `docker compose up -d`.
 
-Aiemmin lähetetyt kuvat pysyvät paikoillaan, eivätkä puhelimet lähetä niitä uudelleen. Jos haluat ne uuteen kansioon, siirrä ne vaiheiden 2 ja 3 välissä: siirrä koko vanhan lähetyskansion sisältö uuteen ja säilytä sisällä olevat kansiot sellaisinaan.
+Siirrä vaiheiden 2 ja 3 välissä koko vanhan lähetyskansion sisältö uuteen ja säilytä sisällä olevat kansiot sellaisinaan. Puhelimet lähettävät uudelleen jokaisen kuvan, joka ei ole uudessa kansiossa. Siirrä myös piilotettu kansio `.phlix-upload-tmp`. Jos haluat aloittaa tyhjällä kansiolla, luo sen sisään kansio nimeltä `.phlix-upload-tmp`: puhelimet lähettävät silloin uudelleen jokaisen kuvan, joka niissä vielä on.
 
 ### Puhelimen kansion nimi
 
-Jätä se ennalleen. Apuohjelma laittaa puhelimen uudet kuvat aina siihen kansioon, jonka puhelin sai parin muodostamisen yhteydessä. Jos nimeät kansion palvelimella uudelleen, apuohjelma luo vanhalla nimellä uuden kansion seuraavaa kuvaa varten. Parin muodostaminen uudelleen ei myöskään muuta kansiota.
+Jos haluat nimetä puhelimen kansion uudelleen, nimeä se uudelleen palvelimella. Apuohjelma löytää kansion sen uudella nimellä ja laittaa puhelimen uudet kuvat sinne. Tai valitse Phlixissä Katkaise yhteys, yhdistä uudelleen ja kirjoita uusi nimi: uudet kuvat menevät silloin sen nimiseen kansioon, ja palvelimella jo olevat kuvat pysyvät paikoillaan.
 
 ### Portti
 
@@ -402,7 +404,7 @@ Jätä se ennalleen. Apuohjelma laittaa puhelimen uudet kuvat aina siihen kansio
 2. Aja `docker compose up -d`.
 3. Anna jokaiselle puhelimelle apuohjelman osoite uudella portilla, esimerkiksi `https://192.168.1.10:8443`. Phlix etsii itse porttia 7459.
    - Puhelin, joka ei ole vielä muodostanut paria: avaa Phlixissä Asetukset > Kameralataus ja napauta Etsi apuohjelmaa ja sitten Syötä apuohjelman osoite. Kirjoita osoite ja napauta Tarkista tämä osoite. Jatka sitten kuten kohdassa [Yhdistä iPhonesi](#yhdistä-iphonesi) vaiheesta 4 alkaen.
-   - Jo pariksi liitetty puhelin säilyttää vanhan osoitteen, eikä sen Kameralataus-näytössä ole kenttää uudelle osoitteelle. Valitse siinä näytössä ensin Katkaise yhteys. Tee sitten se, mitä yllä olevalla rivillä sanotaan. Jokainen, joka ei ole Plex-palvelimen omistaja, syöttää parinmuodostuskoodin uudelleen. Puhelin säilyttää kansionsa, eikä mitään lähetetä kahdesti. Phlix kysyy uudelleen, mitä varmuuskopioidaan, ja aiemmat valintasi ovat valmiina.
+   - Jo pariksi liitetty puhelin säilyttää vanhan osoitteen, eikä sen Kameralataus-näytössä ole kenttää uudelle osoitteelle. Valitse siinä näytössä ensin Katkaise yhteys. Tee sitten se, mitä yllä olevalla rivillä sanotaan. Jokainen, joka ei ole Plex-palvelimen omistaja, syöttää parinmuodostuskoodin uudelleen. Jätä kansion nimi sellaiseksi kuin Phlix sen näyttää: puhelin säilyttää kansionsa, eikä mitään lähetetä kahdesti. Phlix kysyy uudelleen, mitä varmuuskopioidaan, ja aiemmat valintasi ovat valmiina.
 
 ### Toinen kone
 
@@ -511,7 +513,7 @@ Aja ensin yllä oleva tarkistus. Kokeile sitten näitä tässä järjestyksessä
 | Puhelin ei ole kotisi Wi-Fi-verkossa. Se voi olla mobiilidatalla, vieras-Wi-Fissä tai VPN:ssä. | Yhdistä puhelin samaan verkkoon kuin palvelin. Phlix ei etsi apuohjelmaa mobiilidatan kautta. |
 | iOS ei anna Phlixin tavoittaa verkkosi laitteita. Phlix ilmoittaa silloin ”iOS estää Phlixiä käyttämästä lähiverkkoasi. Laita Asetuksissa Lähiverkko päälle Phlixille ja yritä sitten uudelleen.” | Avaa iPhonessa Asetukset > Apit > Phlix ja laita Lähiverkko päälle. |
 | Apuohjelma on eri osoitteessa tai portissa kuin Plex. | Syötä apuohjelman osoite sovellukseen, esimerkiksi `https://192.168.1.10:7459`. |
-| Phlix on vanhempi kuin 1.0.21. Sen Asetuksissa ei silloin ole Kameralataus-riviä. | Päivitä Phlix versioon 1.0.21 tai uudempaan, kun App Store tarjoaa sitä. |
+| Phlix on vanhempi kuin 1.0.21. Sen Asetuksissa ei silloin ole Kameralataus-riviä. | Päivitä Phlix App Storesta versioon 1.0.21 tai uudempaan. |
 
 ### Selain ei avaa tilasivua
 
@@ -593,6 +595,12 @@ Selvitä ensin, saapuvatko tiedostot perille. Tilasivu näyttää kohdan `Files 
 | --- | --- |
 | Kontti käynnistettiin ilman kansiota polussa `/photos`, polussa `/config` tai kummassakaan. Apuohjelma kieltäytyy silloin käynnistymästä: lähetykset päätyisivät kontin sisään ja katoaisivat seuraavassa päivityksessä. | Käynnistä apuohjelma molempien kansioiden kanssa, kuten Compose-tiedostossa tai yllä olevassa `docker run` -komennossa. |
 | Molemmat kansiot on liitetty, ja ilmoitus näkyy silti. Tämä on harvinaista. Niin voi käydä, kun Docker pitää omat tietonsa samalla levyllä kuin kansiosi eikä käytä konteille erillistä tiedostojärjestelmää. | Lisää `docker-compose.yml`-tiedostoon rivi `ALLOW_UNMOUNTED: "1"` kohdan `environment:` alle ja aja `docker compose up -d`. Lähetä sitten yksi kuva ja tarkista, että tiedosto on lähetyskansiossasi palvelimella. |
+
+### Apuohjelma ei käynnisty; sen lokissa lukee, että lähetyskansio on tyhjä
+
+| Syy | Korjaus |
+| --- | --- |
+| Apuohjelma on aiemmin tallentanut kuvia lähetyskansioon, ja nyt kansio on tyhjä. Yleensä jako tai levy, jolla kansio on, ei ole vielä liitetty. Apuohjelma odottaa silloin sitä: Docker käynnistää sen yhä uudelleen, ja se käynnistyy itsestään heti, kun kansio on taas paikalla. | Tarkista, että jako tai levy on liitetty. Jos tyhjensit kansion tarkoituksella, luo sen sisään kansio nimeltä `.phlix-upload-tmp`, esimerkiksi `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. Apuohjelma käynnistyy silloin, ja puhelimet lähettävät uudelleen jokaisen kuvan, joka niissä vielä on. Käynnistä Unraidissa kontti uudelleen Docker-välilehdellä. |
 
 ### Parin muodostus ilmoittaa liian monesta yrityksestä
 

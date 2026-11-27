@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Beta.** Esta es la parte de servidor de la subida de cámara, una función beta de la app [Phlix](https://phlixapp.com) para iPhone y iPad. La otra parte está en Phlix 1.0.21 o posterior, en Ajustes > Subida de cámara. Si el App Store todavía no ofrece esa versión, está en camino.
+**Beta.** Esta es la parte de servidor de la subida de cámara, una función beta de la app [Phlix](https://phlixapp.com) para iPhone y iPad. La otra parte está en Phlix 1.0.21 o posterior, en Ajustes > Subida de cámara. Esa versión está disponible en el App Store.
 
 **Guía de configuración con imágenes: https://phlixapp.com/camera-upload/**
 
@@ -23,7 +23,7 @@ La subida de cámara está en fase beta, y la app la marca con BETA. Conserva tu
 - Phlix puede enviar una notificación cuando todo tenga copia de seguridad: activa Avisarme al completar la copia.
 - Tú eliges qué se copia. Incluir videos está activado al principio. Incluir capturas de pantalla está desactivado al principio. En Copiar eliges Todo en el dispositivo o Solo fotos nuevas.
 - Con Phlix abierto, las fotos nuevas se suben solas. Con Phlix cerrado, iOS le permite continuar en intervalos breves, sobre todo mientras el dispositivo se está cargando.
-- Cada foto se sube una sola vez, tal como se ve en Fotos en ese momento. Una foto editada se sube editada. Una Live Photo se sube como foto fija.
+- Cada foto se sube tal como se ve en Fotos en ese momento. Una foto editada se sube editada. Una Live Photo se sube como foto fija.
 - En el servidor, cada dispositivo tiene su propia carpeta, con una carpeta para cada año y cada mes. Un archivo conserva su nombre y su fecha. La misma foto de dos dispositivos se guarda una sola vez. Nunca se sobrescribe nada.
 - Cuando tu cuenta de Plex es la propietaria del servidor, Phlix le pide a Plex que haga un escaneo cuando han llegado tus fotos, para que aparezcan en Plex.
 - Nunca elimina ni cambia nada en el dispositivo. Es una copia en un solo sentido.
@@ -46,7 +46,7 @@ La subida de cámara está en fase beta, y la app la marca con BETA. Conserva tu
   - En Ubuntu, si instalaste Docker con `sudo apt install docker.io`, agrega Compose con `sudo apt install docker-compose-v2`. Ubuntu 22.04 y posteriores tienen ese paquete.
   - Docker instalado como Snap no puede iniciar el asistente. Ubuntu Server ofrece ese Snap durante la instalación. Para comprobarlo, ejecuta `snap list docker`. Si aparece docker, consulta [Docker Compose dice “bind source path does not exist”](#docker-compose-dice-bind-source-path-does-not-exist-la-ruta-de-origen-del-montaje-no-existe).
 - Una biblioteca de fotos en Plex.
-- Phlix 1.0.21 o posterior en un iPhone o iPad. Para comprobarlo, abre Ajustes en Phlix: desde la 1.0.21 tiene una fila Subida de cámara, marcada con BETA. Si el App Store todavía no ofrece esa versión, está en camino.
+- Phlix 1.0.21 o posterior en un iPhone o iPad. Para comprobarlo, abre Ajustes en Phlix: desde la 1.0.21 tiene una fila Subida de cámara, marcada con BETA. Esa versión está disponible en el App Store.
 - El teléfono y el servidor en la misma red doméstica.
 
 La imagen funciona en Intel y AMD de 64 bits, en Arm de 64 bits y en Arm de 32 bits (ARMv7). Contiene una variante para cada uno, y Docker elige por sí solo la que corresponde a tu equipo. [La página de la imagen en GitHub](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) también muestra `unknown/unknown`. Eso no es una variante: es el registro de cómo se creó la imagen y de lo que contiene.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **La carpeta del dispositivo** recibe su nombre cuando el dispositivo se vincula. Si dos dispositivos piden el mismo nombre, el segundo recibe un número, como `iPhone 2`. Un dispositivo que se vuelve a vincular conserva su carpeta.
+- **La carpeta del dispositivo** recibe su nombre cuando el dispositivo se vincula. Si dos dispositivos piden el mismo nombre, el segundo recibe un número, como `iPhone 2`. Un dispositivo que se vuelve a vincular conserva su carpeta, salvo que escribas otro nombre en Phlix: entonces sus fotos nuevas van a una carpeta con ese nombre.
 - **El año y el mes** salen de la propia fecha de la foto, en la hora local del teléfono. Una foto sin fecha se archiva con la fecha de la subida.
 - **El archivo** conserva el nombre que tenía en el teléfono. El asistente también pone como fecha de modificación del archivo la fecha de la foto.
 - **Dos fotos distintas con el mismo nombre** se conservan ambas. La segunda recibe un número: `IMG_1234 (2).HEIC`.
 - **La misma foto de dos teléfonos** se guarda una sola vez. El asistente compara el contenido de los archivos, no sus nombres. La foto se queda en la carpeta del teléfono que la envió primero.
-- **Los archivos que muevas o elimines** en el servidor no se vuelven a pedir. El asistente lleva su propia lista de lo que ha enviado cada teléfono.
+- **Una foto solo tiene copia de seguridad** mientras su archivo está en la carpeta de subidas. Si eliminas un archivo, o toda la carpeta de un dispositivo, y la foto sigue en el dispositivo, Phlix vuelve a subirla. Lo comprueba cuando abres la pantalla Subida de cámara y, de vez en cuando, mientras hace la copia de seguridad en casa.
+- **Ordena los archivos en las carpetas que quieras** dentro de la carpeta de subidas, sin cambiarles el nombre: Phlix los encuentra ahí. El asistente sigue la carpeta de un dispositivo aunque le cambies el nombre, y las fotos nuevas van a ella. Un archivo al que cambies el nombre, o que saques de la carpeta de subidas, se vuelve a subir. Un archivo que edites sigue contando. Nunca se sobrescribe nada.
+- **Si un archivo sale una y otra vez de la carpeta de subidas poco después de cada subida**, por ejemplo porque un programa del servidor mueve los archivos nuevos a otro sitio, Phlix lo vuelve a enviar tres veces como máximo y luego lo incluye en No se pueden copiar. Una foto cuya carpeta eliminaste nunca aparece ahí: Phlix la vuelve a enviar cada vez. Así que, si un programa de ese tipo también elimina las carpetas que vacía, el límite de tres veces nunca se aplica, y Phlix vuelve a subir las mismas fotos cada vez que hace la copia de seguridad. Configura el programa para que deje las carpetas en su sitio. Cuando vuelves a conectar el teléfono, o eliminas la carpeta que contenía una foto de esa lista, Phlix también vuelve a enviar esa foto. Para que una foto no llegue al servidor, ocúltala en la app Fotos: Phlix nunca sube fotos ocultas.
 
 El asistente acepta estos tipos de archivo y rechaza todo lo demás:
 
@@ -361,7 +363,7 @@ El asistente funciona sin ningún ajuste. Para cambiar uno, abre `docker-compose
 | `PAIRING` | `auto` | Quién puede vincularse. `auto`: el propietario del servidor Plex se vincula sin código, y todos los demás escriben el código de vinculación. `code`: todos escriben el código. `plex`: solo el propietario del servidor Plex puede vincularse. |
 | `PAIRING_CODE` | vacío | Tu propio código de vinculación, con al menos 6 letras o cifras. Si está vacío, el asistente crea un código en el primer inicio y lo conserva. |
 | `NAME` | `Phlix Camera Upload` | El nombre que la app y la página de estado muestran para este asistente. Como máximo 60 caracteres. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Las carpetas que el asistente crea dentro de la carpeta de subidas. Puedes usar `{device}`, `{year}`, `{month}` y `{day}`. Ninguna carpeta puede empezar por un punto. Con una sola `/`, todos los archivos van directamente a la carpeta de subidas. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Las carpetas que el asistente crea dentro de la carpeta de subidas. Puedes usar `{device}`, `{year}`, `{month}` y `{day}`. Ninguna carpeta puede empezar por un punto. Con una sola `/`, todos los archivos van directamente a la carpeta de subidas. El asistente solo sigue la carpeta de un dispositivo a la que cambies el nombre si `{device}` es una carpeta propia sin ninguna fecha delante, como en el valor predeterminado. |
 | `MIN_FREE_GB` | `2` | El asistente rechaza una subida que dejaría en el disco menos de estos GB libres. Cuenta las subidas que todavía están llegando, así que varias subidas a la vez no pueden dejar el disco por debajo de esta cantidad. De 0 a 1000000. |
 | `MAX_UPLOAD_GB` | `50` | El archivo individual más grande que acepta el asistente, en GB. De 0.001 a 1000000. |
 | `EXTRA_EXTENSIONS` | vacío | Más tipos de archivo que aceptar, separados por comas, como `insp,lrv`. Cada uno tiene de 1 a 10 letras o cifras. |
@@ -390,11 +392,11 @@ La imagen también define `PHLIX_CONTAINER=1`. Con esto, el asistente se niega a
 3. En `docker-compose.yml`, cambia la línea que empieza por `source:` para que apunte a la nueva carpeta.
 4. Ejecuta `docker compose up -d`.
 
-Las fotos que ya se subieron se quedan donde están, y los teléfonos no las vuelven a enviar. Si las quieres en la nueva carpeta, muévelas entre el paso 2 y el paso 3: mueve todo lo que hay dentro de la antigua carpeta de subidas a la nueva, y deja las carpetas de dentro tal como están.
+Entre el paso 2 y el paso 3, mueve todo lo que hay dentro de la antigua carpeta de subidas a la nueva, y deja las carpetas de dentro tal como están. Los teléfonos vuelven a enviar cada foto que no esté en la nueva carpeta. Mueve también la carpeta oculta `.phlix-upload-tmp`. Para empezar con una carpeta vacía, crea dentro de ella una carpeta llamada `.phlix-upload-tmp`: entonces los teléfonos vuelven a enviar cada foto que todavía tengan.
 
 ### El nombre de la carpeta de un teléfono
 
-Déjalo como está. El asistente sigue poniendo las fotos nuevas de un teléfono en la carpeta que el teléfono recibió al vincularse. Si cambias el nombre de esa carpeta en el servidor, el asistente vuelve a crear una carpeta con el nombre antiguo para la siguiente foto. Volver a vincular el teléfono tampoco cambia la carpeta.
+Para cambiar el nombre de la carpeta de un teléfono, cámbialo en el servidor. El asistente encuentra la carpeta con su nuevo nombre y pone ahí las fotos nuevas del teléfono. O bien, en Phlix, elige Desconectar, vuelve a conectarte y escribe el nuevo nombre: las fotos nuevas van entonces a una carpeta con ese nombre, y las fotos que ya están en el servidor se quedan donde están.
 
 ### El puerto
 
@@ -402,7 +404,7 @@ Déjalo como está. El asistente sigue poniendo las fotos nuevas de un teléfono
 2. Ejecuta `docker compose up -d`.
 3. Indica a cada teléfono la dirección del asistente con el nuevo puerto, por ejemplo `https://192.168.1.10:8443`. Phlix, por sí solo, únicamente busca el puerto 7459.
    - Un teléfono que todavía no se ha vinculado: en Phlix, abre Ajustes > Subida de cámara y toca Buscar el asistente y luego Escribir la dirección del asistente. Escribe la dirección y toca Comprobar esta dirección. Después sigue como en [Conecta tu iPhone](#conecta-tu-iphone), desde el paso 4.
-   - Un teléfono que ya está vinculado conserva la dirección antigua, y su pantalla Subida de cámara no tiene ningún campo para una nueva. En esa pantalla, elige primero Desconectar. Después haz lo que dice la línea anterior. Quien no sea el propietario del servidor Plex vuelve a escribir el código de vinculación. El teléfono conserva su carpeta y nada se sube dos veces. Phlix vuelve a preguntar qué copiar, con las opciones que elegiste antes ya marcadas.
+   - Un teléfono que ya está vinculado conserva la dirección antigua, y su pantalla Subida de cámara no tiene ningún campo para una nueva. En esa pantalla, elige primero Desconectar. Después haz lo que dice la línea anterior. Quien no sea el propietario del servidor Plex vuelve a escribir el código de vinculación. Deja el nombre de la carpeta tal como lo muestra Phlix: el teléfono conserva su carpeta y nada se sube dos veces. Phlix vuelve a preguntar qué copiar, con las opciones que elegiste antes ya marcadas.
 
 ### Otro equipo
 
@@ -511,7 +513,7 @@ Primero ejecuta la comprobación de arriba. Luego prueba lo siguiente, en este o
 | El teléfono no está en la red Wi-Fi de tu casa. Puede que esté con datos móviles, en una red Wi-Fi de invitados o en una VPN. | Conecta el teléfono a la misma red que el servidor. Phlix no busca el asistente con datos móviles. |
 | iOS no deja que Phlix llegue a los dispositivos de tu red. Entonces Phlix dice “iOS está impidiendo que Phlix acceda a tu red local. Activa Red local para Phlix en Ajustes y vuelve a intentarlo.” | En el iPhone, abre Ajustes > Apps > Phlix y activa Red local. |
 | El asistente está en una dirección o en un puerto distintos de los de Plex. | Escribe la dirección del asistente en la app, por ejemplo `https://192.168.1.10:7459`. |
-| Phlix es anterior a la 1.0.21. Entonces sus Ajustes no tienen la fila Subida de cámara. | Actualiza Phlix a la 1.0.21 o posterior, cuando el App Store la ofrezca. |
+| Phlix es anterior a la 1.0.21. Entonces sus Ajustes no tienen la fila Subida de cámara. | Actualiza Phlix a la 1.0.21 o posterior desde el App Store. |
 
 ### El navegador no puede abrir la página de estado
 
@@ -593,6 +595,12 @@ Primero averigua si los archivos llegan. La página de estado muestra `Files sto
 | --- | --- |
 | El contenedor se inició sin una carpeta en `/photos`, sin una en `/config`, o sin ninguna de las dos. Entonces el asistente se niega a iniciarse: las subidas acabarían dentro del contenedor y se perderían en la siguiente actualización. | Inicia el asistente con ambas carpetas, como en el archivo Compose o en el comando `docker run` de arriba. |
 | Ambas carpetas están montadas y el mensaje sigue apareciendo. Es raro. Puede pasar cuando Docker guarda sus propios datos en el mismo disco que tus carpetas y no usa un sistema de archivos separado para los contenedores. | En `docker-compose.yml`, agrega la línea `ALLOW_UNMOUNTED: "1"` debajo de `environment:` y ejecuta `docker compose up -d`. Luego sube una foto y comprueba que el archivo está en tu carpeta de subidas del servidor. |
+
+### El asistente no se inicia; su registro dice que la carpeta de subidas está vacía
+
+| Causa | Solución |
+| --- | --- |
+| El asistente ya había guardado fotos en la carpeta de subidas, y ahora la carpeta está vacía. Normalmente, el recurso compartido o el disco que la contiene todavía no está montado. Entonces el asistente lo espera: Docker lo vuelve a iniciar una y otra vez, y se inicia solo en cuanto la carpeta vuelve a estar disponible. | Comprueba que el recurso compartido o el disco esté montado. Si vaciaste la carpeta a propósito, crea dentro de ella una carpeta llamada `.phlix-upload-tmp`, por ejemplo `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. Entonces el asistente se inicia, y los teléfonos vuelven a enviar cada foto que todavía tengan. En Unraid, vuelve a iniciar el contenedor en la pestaña Docker. |
 
 ### La vinculación dice que hubo demasiados intentos
 

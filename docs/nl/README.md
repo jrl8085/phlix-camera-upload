@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Bèta.** Dit is de serverhelft van Camera-upload, een bètafunctie van de app [Phlix](https://phlixapp.com) voor iPhone en iPad. De andere helft zit in Phlix 1.0.21 of nieuwer, onder Instellingen > Camera-upload. Als de App Store die versie nog niet aanbiedt, is die onderweg.
+**Bèta.** Dit is de serverhelft van Camera-upload, een bètafunctie van de app [Phlix](https://phlixapp.com) voor iPhone en iPad. De andere helft zit in Phlix 1.0.21 of nieuwer, onder Instellingen > Camera-upload. Die versie is beschikbaar in de App Store.
 
 **Installatiegids met afbeeldingen: https://phlixapp.com/camera-upload/**
 
@@ -23,7 +23,7 @@ Camera-upload is een bèta, en de app markeert het als bèta. Houd zelf een back
 - Phlix kan een melding sturen als van alles een back-up is gemaakt: zet Melding als back-up klaar is aan.
 - Je kiest zelf waarvan een back-up wordt gemaakt. Inclusief video's staat in het begin aan. Inclusief schermafbeeldingen staat in het begin uit. Bij Back-up van kies je Alles op dit apparaat of Alleen nieuwe foto's.
 - Als Phlix open is, worden nieuwe foto's vanzelf geüpload. Als Phlix gesloten is, laat iOS het in korte periodes doorgaan, vooral terwijl het apparaat oplaadt.
-- Elke foto wordt één keer geüpload, zoals die er op dat moment uitziet in Foto's. Een bewerkte foto wordt bewerkt geüpload. Van een Live Photo wordt de stilstaande foto geüpload.
+- Elke foto wordt geüpload zoals die er op dat moment uitziet in Foto's. Een bewerkte foto wordt bewerkt geüpload. Van een Live Photo wordt de stilstaande foto geüpload.
 - Op de server heeft elk apparaat een eigen map, met een map voor elk jaar en elke maand. Een bestand houdt zijn naam en zijn datum. Dezelfde foto van twee apparaten wordt één keer opgeslagen. Er wordt nooit iets overschreven.
 - Als je Plex-account de eigenaar van de server is, vraagt Phlix Plex om te scannen zodra je foto's zijn aangekomen, zodat ze in Plex verschijnen.
 - Het verwijdert of wijzigt nooit iets op het apparaat. Het is een kopie in één richting.
@@ -46,7 +46,7 @@ Camera-upload is een bèta, en de app markeert het als bèta. Houd zelf een back
   - Op Ubuntu: heb je Docker geïnstalleerd met `sudo apt install docker.io`, voeg Compose dan toe met `sudo apt install docker-compose-v2`. Ubuntu 22.04 en nieuwer hebben dat pakket.
   - Docker uit een Snap kan het hulpprogramma niet starten. Ubuntu Server biedt die Snap aan tijdens de installatie. Voer `snap list docker` uit om dat te controleren. Staat docker in de lijst, zie dan [Docker Compose zegt “bind source path does not exist”](#docker-compose-zegt-bind-source-path-does-not-exist).
 - Een fotobibliotheek in Plex.
-- Phlix 1.0.21 of nieuwer op een iPhone of iPad. Open om dat te controleren Instellingen in Phlix: vanaf 1.0.21 staat daar een rij Camera-upload, gemarkeerd als bèta. Als de App Store die versie nog niet aanbiedt, is die onderweg.
+- Phlix 1.0.21 of nieuwer op een iPhone of iPad. Open om dat te controleren Instellingen in Phlix: vanaf 1.0.21 staat daar een rij Camera-upload, gemarkeerd als bèta. Die versie is beschikbaar in de App Store.
 - De telefoon en de server op hetzelfde thuisnetwerk.
 
 De image draait op 64-bits Intel en AMD, op 64-bits Arm en op 32-bits Arm (ARMv7). Er zit voor elk één variant in, en Docker kiest zelf de variant voor jouw machine. [De pagina van de image op GitHub](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) noemt ook `unknown/unknown`. Dat is geen variant: het is het verslag van hoe de image is gebouwd en wat erin zit.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **De map van het apparaat** krijgt zijn naam als het apparaat koppelt. Vragen twee apparaten om dezelfde naam, dan krijgt het tweede een nummer, zoals `iPhone 2`. Een apparaat dat opnieuw koppelt, houdt zijn map.
+- **De map van het apparaat** krijgt zijn naam als het apparaat koppelt. Vragen twee apparaten om dezelfde naam, dan krijgt het tweede een nummer, zoals `iPhone 2`. Een apparaat dat opnieuw koppelt, houdt zijn map, tenzij je in Phlix een andere naam typt: dan komen de nieuwe foto's ervan in een map met die naam.
 - **Het jaar en de maand** komen van de eigen datum van de foto, in de lokale tijd van de telefoon. Een foto zonder datum wordt ingedeeld onder de datum van de upload.
 - **Het bestand** houdt de naam die het op de telefoon had. Het hulpprogramma zet ook de wijzigingstijd van het bestand op de datum van de foto.
 - **Twee verschillende foto's met dezelfde naam** worden allebei bewaard. De tweede krijgt een nummer: `IMG_1234 (2).HEIC`.
 - **Dezelfde foto van twee telefoons** wordt één keer opgeslagen. Het hulpprogramma vergelijkt de inhoud van de bestanden, niet de namen. De foto blijft in de map van de telefoon die hem als eerste stuurde.
-- **Bestanden die je op de server verplaatst of verwijdert**, worden niet opnieuw opgevraagd. Het hulpprogramma houdt een eigen lijst bij van wat elke telefoon heeft gestuurd.
+- **Een foto heeft alleen een back-up** zolang het bestand ervan in de uploadmap staat. Als je een bestand of de hele map van een apparaat verwijdert en de foto nog op het apparaat staat, uploadt Phlix die opnieuw. Phlix controleert dat als je het scherm Camera-upload opent, en af en toe tijdens het maken van een back-up thuis.
+- **Sorteer bestanden in willekeurige mappen** binnen de uploadmap, zonder hun naam te veranderen: Phlix vindt ze daar. Het hulpprogramma volgt de map van een apparaat als je die een andere naam geeft, en nieuwe foto's komen erin. Een bestand dat je een andere naam geeft, of uit de uploadmap haalt, wordt opnieuw geüpload. Een bestand dat je bewerkt, telt nog steeds. Er wordt nooit iets overschreven.
+- **Verdwijnt een bestand steeds kort na elke upload uit de uploadmap**, bijvoorbeeld omdat een programma op de server nieuwe bestanden ergens anders heen verplaatst, dan stuurt Phlix het hoogstens drie keer opnieuw en toont het daarna onder Back-up niet mogelijk. Een foto waarvan je de map hebt verwijderd, komt daar nooit te staan: Phlix stuurt die elke keer opnieuw. Verwijdert zo'n programma ook de mappen die het leegmaakt, dan geldt de grens van drie keer dus nooit, en uploadt Phlix bij elke back-up dezelfde foto's opnieuw. Stel het programma zo in dat het de mappen laat staan. Als je op de telefoon opnieuw verbinding maakt, of de map verwijdert waarin een foto uit die lijst stond, stuurt Phlix ook die foto opnieuw. Wil je een foto niet op de server, verberg die dan in de app Foto's: Phlix uploadt verborgen foto's nooit.
 
 Het hulpprogramma accepteert deze bestandstypen en weigert al het andere:
 
@@ -361,7 +363,7 @@ Het hulpprogramma werkt zonder instellingen. Om er een te veranderen, open je `d
 | `PAIRING` | `auto` | Wie mag koppelen. `auto`: de eigenaar van de Plex-server koppelt zonder code, en alle anderen typen de koppelcode. `code`: iedereen typt de code. `plex`: alleen de eigenaar van de Plex-server mag koppelen. |
 | `PAIRING_CODE` | leeg | Je eigen koppelcode, met minstens 6 letters of cijfers. Als dit leeg is, maakt het hulpprogramma bij de eerste start een code en bewaart die. |
 | `NAME` | `Phlix Camera Upload` | De naam die de app en de statuspagina voor dit hulpprogramma tonen. Hoogstens 60 tekens. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | De mappen die het hulpprogramma in de uploadmap maakt. Je kunt `{device}`, `{year}`, `{month}` en `{day}` gebruiken. Geen map mag met een punt beginnen. Met alleen een `/` gaat elk bestand direct in de uploadmap. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | De mappen die het hulpprogramma in de uploadmap maakt. Je kunt `{device}`, `{year}`, `{month}` en `{day}` gebruiken. Geen map mag met een punt beginnen. Met alleen een `/` gaat elk bestand direct in de uploadmap. Het hulpprogramma volgt een apparaatmap die je een andere naam geeft alleen als `{device}` een eigen map is zonder datum ervoor, zoals in de standaardwaarde. |
 | `MIN_FREE_GB` | `2` | Het hulpprogramma weigert een upload die minder dan zoveel GB vrij zou laten op de schijf. Het telt de uploads mee die nog binnenkomen, zodat meerdere uploads tegelijk de schijf niet onder deze grens kunnen brengen. Van 0 tot 1000000. |
 | `MAX_UPLOAD_GB` | `50` | Het grootste losse bestand dat het hulpprogramma accepteert, in GB. Van 0.001 tot 1000000. |
 | `EXTRA_EXTENSIONS` | leeg | Meer bestandstypen om te accepteren, gescheiden door komma's, zoals `insp,lrv`. Elk type is 1 tot 10 letters of cijfers. |
@@ -390,11 +392,11 @@ De image zet ook `PHLIX_CONTAINER=1`. Daarmee weigert het hulpprogramma te start
 3. Zet in `docker-compose.yml` de nieuwe map op de regel die met `source:` begint.
 4. Voer `docker compose up -d` uit.
 
-Foto's die al eerder zijn geüpload, blijven waar ze zijn, en telefoons sturen ze niet opnieuw. Wil je ze in de nieuwe map hebben, verplaats ze dan tussen stap 2 en stap 3: verplaats alles wat in de oude uploadmap staat naar de nieuwe, en laat de mappen daarbinnen zoals ze zijn.
+Verplaats tussen stap 2 en stap 3 alles wat in de oude uploadmap staat naar de nieuwe, en laat de mappen daarbinnen zoals ze zijn. Telefoons sturen elke foto die niet in de nieuwe map staat opnieuw. Verplaats ook de verborgen map `.phlix-upload-tmp`. Wil je met een lege map beginnen, maak daarin dan een map met de naam `.phlix-upload-tmp`: telefoons sturen dan elke foto die er nog op staat opnieuw.
 
 ### De naam van de map van een telefoon
 
-Laat die zoals hij is. Het hulpprogramma blijft de nieuwe foto's van een telefoon in de map zetten die de telefoon bij het koppelen kreeg. Geef je die map op de server een andere naam, dan maakt het hulpprogramma bij de volgende foto een map met de oude naam opnieuw aan. Ook opnieuw koppelen verandert de map niet.
+Wil je de map van een telefoon een andere naam geven, doe dat dan op de server. Het hulpprogramma vindt de map onder zijn nieuwe naam en zet de nieuwe foto's van de telefoon daarin. Of kies in Phlix Verbreek verbinding, maak opnieuw verbinding en typ de nieuwe naam: nieuwe foto's komen dan in een map met die naam, en de foto's die al op de server staan, blijven waar ze zijn.
 
 ### De poort
 
@@ -402,7 +404,7 @@ Laat die zoals hij is. Het hulpprogramma blijft de nieuwe foto's van een telefoo
 2. Voer `docker compose up -d` uit.
 3. Geef elke telefoon het adres van het hulpprogramma met de nieuwe poort, bijvoorbeeld `https://192.168.1.10:8443`. Uit zichzelf zoekt Phlix naar poort 7459.
    - Een telefoon die nog niet is gekoppeld: open in Phlix Instellingen > Camera-upload en tik op Zoek het hulpprogramma en daarna op Voer adres van hulpprogramma in. Typ het adres en tik op Controleer dit adres. Ga daarna verder zoals bij [Verbind je iPhone](#verbind-je-iphone), vanaf stap 4.
-   - Een telefoon die al is gekoppeld, houdt het oude adres, en zijn scherm Camera-upload heeft geen veld voor een nieuw adres. Kies op dat scherm eerst Verbreek verbinding. Doe daarna wat de regel hierboven zegt. Wie niet de eigenaar van de Plex-server is, typt de koppelcode opnieuw. De telefoon houdt zijn map, en niets wordt twee keer geüpload. Phlix vraagt opnieuw waarvan je een back-up wilt maken, met de keuzes die je eerder maakte al ingevuld.
+   - Een telefoon die al is gekoppeld, houdt het oude adres, en zijn scherm Camera-upload heeft geen veld voor een nieuw adres. Kies op dat scherm eerst Verbreek verbinding. Doe daarna wat de regel hierboven zegt. Wie niet de eigenaar van de Plex-server is, typt de koppelcode opnieuw. Laat de mapnaam staan zoals Phlix die toont: de telefoon houdt zijn map, en niets wordt twee keer geüpload. Phlix vraagt opnieuw waarvan je een back-up wilt maken, met de keuzes die je eerder maakte al ingevuld.
 
 ### Een andere machine
 
@@ -511,7 +513,7 @@ Voer eerst de controle hierboven uit. Probeer daarna deze dingen, in deze volgor
 | De telefoon zit niet op je Wi-Fi thuis. Hij gebruikt misschien mobiele data, een gastnetwerk of een VPN. | Verbind de telefoon met hetzelfde netwerk als de server. Phlix zoekt niet via mobiele data naar het hulpprogramma. |
 | iOS laat Phlix geen apparaten op je netwerk bereiken. Phlix meldt dan: “iOS geeft Phlix geen toegang tot je lokale netwerk. Zet “Lokaal netwerk” aan voor Phlix in Instellingen en probeer het dan opnieuw.” | Open op de iPhone Instellingen > Apps > Phlix en zet Lokaal netwerk aan. |
 | Het hulpprogramma staat op een ander adres of een andere poort dan Plex. | Typ het adres van het hulpprogramma in de app, bijvoorbeeld `https://192.168.1.10:7459`. |
-| Phlix is ouder dan 1.0.21. In Instellingen staat dan geen rij Camera-upload. | Werk Phlix bij naar 1.0.21 of nieuwer, zodra de App Store die versie aanbiedt. |
+| Phlix is ouder dan 1.0.21. In Instellingen staat dan geen rij Camera-upload. | Werk Phlix via de App Store bij naar 1.0.21 of nieuwer. |
 
 ### De browser kan de statuspagina niet openen
 
@@ -593,6 +595,12 @@ Zoek eerst uit of de bestanden aankomen. De statuspagina toont `Files stored`, e
 | --- | --- |
 | De container is gestart zonder map op `/photos`, op `/config`, of op allebei. Het hulpprogramma weigert dan te starten: uploads zouden in de container terechtkomen en bij de volgende update verloren gaan. | Start het hulpprogramma met beide mappen, zoals in het Compose-bestand of de opdracht `docker run` hierboven. |
 | Beide mappen zijn gemount, en de melding verschijnt toch. Dat is zeldzaam. Het kan gebeuren als Docker zijn eigen gegevens op dezelfde schijf bewaart als je mappen en geen apart bestandssysteem voor containers gebruikt. | Voeg in `docker-compose.yml` de regel `ALLOW_UNMOUNTED: "1"` toe onder `environment:`, en voer `docker compose up -d` uit. Upload daarna één foto en controleer of het bestand in je uploadmap op de server staat. |
+
+### Het hulpprogramma start niet; het logboek zegt dat de uploadmap leeg is
+
+| Oorzaak | Oplossing |
+| --- | --- |
+| Het hulpprogramma heeft eerder foto's in de uploadmap opgeslagen, en nu is de map leeg. Meestal is de share of schijf waarop die staat nog niet gemount. Het hulpprogramma wacht er dan op: Docker start het steeds opnieuw, en het start vanzelf zodra de map terug is. | Controleer of de share of schijf gemount is. Heb je de map met opzet leeggemaakt, maak daarin dan een map met de naam `.phlix-upload-tmp`, bijvoorbeeld `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. Het hulpprogramma start dan, en telefoons sturen elke foto die er nog op staat opnieuw. Start op Unraid de container opnieuw op het tabblad Docker. |
 
 ### Koppelen meldt dat er te veel pogingen waren
 

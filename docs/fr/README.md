@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Bêta.** Ceci est la partie serveur de la fonction Envoi des photos, une fonction bêta de l’app [Phlix](https://phlixapp.com) pour iPhone et iPad. L’autre partie se trouve dans Phlix 1.0.21 ou version ultérieure, dans Réglages > Envoi des photos. Si l’App Store ne propose pas encore cette version, elle arrive bientôt.
+**Bêta.** Ceci est la partie serveur de la fonction Envoi des photos, une fonction bêta de l’app [Phlix](https://phlixapp.com) pour iPhone et iPad. L’autre partie se trouve dans Phlix 1.0.21 ou version ultérieure, dans Réglages > Envoi des photos. Cette version est disponible sur l’App Store.
 
 **Guide de configuration illustré : https://phlixapp.com/camera-upload/**
 
@@ -23,7 +23,7 @@ L’envoi des photos est une version bêta, et l’app l’indique par la mentio
 - Phlix peut envoyer une notification quand tout est sauvegardé : activez M’avertir en fin de sauvegarde.
 - Vous choisissez ce qui est sauvegardé. Inclure les vidéos est activé au départ. Inclure les captures d’écran est désactivé au départ. L’option Sauvegarder se règle sur Tout sur cet appareil ou sur Nouvelles photos.
 - Quand Phlix est ouvert, les nouvelles photos s’envoient d’elles-mêmes. Quand Phlix est fermé, iOS le laisse continuer par courtes périodes, surtout pendant que l’appareil est en charge.
-- Chaque photo est envoyée une seule fois, telle qu’elle apparaît dans Photos à ce moment-là. Une photo retouchée est envoyée retouchée. Une Live Photo est envoyée sous forme de photo fixe.
+- Chaque photo est envoyée telle qu’elle apparaît dans Photos à ce moment-là. Une photo retouchée est envoyée retouchée. Une Live Photo est envoyée sous forme de photo fixe.
 - Sur le serveur, chaque appareil a son propre dossier, avec un dossier par année et par mois. Un fichier garde son nom et sa date. La même photo venant de deux appareils n’est stockée qu’une fois. Rien n’est jamais écrasé.
 - Quand votre compte Plex est propriétaire du serveur, Phlix demande à Plex d’analyser la bibliothèque une fois vos photos arrivées, pour qu’elles apparaissent dans Plex.
 - Elle ne supprime ni ne modifie jamais rien sur l’appareil. C’est une copie à sens unique.
@@ -46,7 +46,7 @@ L’envoi des photos est une version bêta, et l’app l’indique par la mentio
   - Sous Ubuntu, si vous avez installé Docker avec `sudo apt install docker.io`, ajoutez Compose avec `sudo apt install docker-compose-v2`. Ubuntu 22.04 et les versions ultérieures proposent ce paquet.
   - Docker installé en Snap ne peut pas démarrer l’assistant. Ubuntu Server propose ce Snap pendant son installation. Pour vérifier, exécutez `snap list docker`. S’il affiche docker, consultez [Docker Compose indique « bind source path does not exist »](#docker-compose-indique-bind-source-path-does-not-exist-le-chemin-source-du-montage-nexiste-pas).
 - Une bibliothèque de photos dans Plex.
-- Phlix 1.0.21 ou version ultérieure sur un iPhone ou un iPad. Pour vérifier, ouvrez Réglages dans Phlix : à partir de la version 1.0.21, on y trouve une ligne Envoi des photos, marquée BETA. Si l’App Store ne propose pas encore cette version, elle arrive bientôt.
+- Phlix 1.0.21 ou version ultérieure sur un iPhone ou un iPad. Pour vérifier, ouvrez Réglages dans Phlix : à partir de la version 1.0.21, on y trouve une ligne Envoi des photos, marquée BETA. Cette version est disponible sur l’App Store.
 - Le téléphone et le serveur sur le même réseau domestique.
 
 L’image fonctionne sur Intel et AMD 64 bits, sur Arm 64 bits et sur Arm 32 bits (ARMv7). Elle contient une variante pour chacun, et Docker choisit de lui-même celle qui convient à votre machine. [La page de l’image sur GitHub](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) affiche aussi `unknown/unknown`. Ce n’est pas une variante : c’est la trace de la façon dont l’image a été construite et de ce qu’elle contient.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **Le dossier de l’appareil** reçoit son nom quand l’appareil se jumelle. Si deux appareils demandent le même nom, le second reçoit un numéro, par exemple `iPhone 2`. Un appareil qui se jumelle à nouveau garde son dossier.
+- **Le dossier de l’appareil** reçoit son nom quand l’appareil se jumelle. Si deux appareils demandent le même nom, le second reçoit un numéro, par exemple `iPhone 2`. Un appareil qui se jumelle à nouveau garde son dossier, sauf si vous saisissez un autre nom dans Phlix : ses nouvelles photos vont alors dans un dossier de ce nom.
 - **L’année et le mois** viennent de la date de la photo elle-même, à l’heure locale du téléphone. Une photo sans date est classée à la date de l’envoi.
 - **Le fichier** garde le nom qu’il avait sur le téléphone. L’assistant règle aussi la date de modification du fichier sur la date de la photo.
 - **Deux photos différentes portant le même nom** sont conservées toutes les deux. La seconde reçoit un numéro : `IMG_1234 (2).HEIC`.
 - **La même photo venant de deux téléphones** n’est stockée qu’une fois. L’assistant compare le contenu des fichiers, pas leurs noms. La photo reste dans le dossier du téléphone qui l’a envoyée en premier.
-- **Les fichiers que vous déplacez ou supprimez** sur le serveur ne sont pas redemandés. L’assistant tient sa propre liste de ce que chaque téléphone a envoyé.
+- **Une photo compte comme sauvegardée** uniquement tant que son fichier se trouve dans le dossier de destination. Si vous supprimez un fichier, ou tout le dossier d’un appareil, et que la photo est toujours sur l’appareil, Phlix l’envoie à nouveau. Phlix fait cette vérification quand vous ouvrez l’écran Envoi des photos, et de temps en temps pendant les sauvegardes à la maison.
+- **Rangez les fichiers dans les dossiers de votre choix** à l’intérieur du dossier de destination, en gardant leurs noms : Phlix les y retrouve. L’assistant suit le dossier d’un appareil que vous renommez, et les nouvelles photos y vont. Un fichier que vous renommez, ou que vous sortez du dossier de destination, est envoyé à nouveau. Un fichier que vous modifiez compte toujours. Rien n’est jamais écrasé.
+- **Si un fichier quitte sans cesse le dossier de destination peu après chaque envoi**, par exemple parce qu’un programme sur le serveur déplace ailleurs les nouveaux fichiers, Phlix l’envoie à nouveau trois fois au plus, puis l’indique sous Sauvegarde impossible. Une photo dont vous avez supprimé le dossier n’y figure jamais : Phlix l’envoie à nouveau à chaque fois. Donc, si un tel programme supprime aussi les dossiers qu’il vide, la limite de trois envois ne s’applique jamais, et Phlix envoie à nouveau les mêmes photos à chaque sauvegarde. Réglez le programme pour qu’il laisse les dossiers en place. Quand vous connectez à nouveau le téléphone, ou supprimez le dossier qui contenait une photo de cette liste, Phlix envoie aussi cette photo à nouveau. Pour qu’une photo ne soit pas envoyée sur le serveur, masquez-la dans l’app Photos : Phlix n’envoie jamais les photos masquées.
 
 L’assistant accepte ces types de fichiers et refuse tout le reste :
 
@@ -361,7 +363,7 @@ L’assistant fonctionne sans aucun paramètre. Pour en changer un, ouvrez `dock
 | `PAIRING` | `auto` | Qui peut se jumeler. `auto` : le propriétaire du serveur Plex se jumelle sans code, et toutes les autres personnes saisissent le code de jumelage. `code` : tout le monde saisit le code. `plex` : seul le propriétaire du serveur Plex peut se jumeler. |
 | `PAIRING_CODE` | vide | Votre propre code de jumelage, d’au moins 6 lettres ou chiffres. Quand ce paramètre est vide, l’assistant crée un code au premier démarrage et le conserve. |
 | `NAME` | `Phlix Camera Upload` | Le nom que l’app et la page d’état affichent pour cet assistant. 60 caractères au maximum. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Les dossiers que l’assistant crée dans le dossier de destination. Vous pouvez utiliser `{device}`, `{year}`, `{month}` et `{day}`. Aucun dossier ne peut commencer par un point. Avec un simple `/`, chaque fichier va directement dans le dossier de destination. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | Les dossiers que l’assistant crée dans le dossier de destination. Vous pouvez utiliser `{device}`, `{year}`, `{month}` et `{day}`. Aucun dossier ne peut commencer par un point. Avec un simple `/`, chaque fichier va directement dans le dossier de destination. L’assistant ne suit le dossier renommé d’un appareil que si `{device}` est un dossier à part entière, sans date devant, comme par défaut. |
 | `MIN_FREE_GB` | `2` | L’assistant refuse un envoi qui laisserait moins que ce nombre de Go libres sur le disque. Il compte les envois encore en cours de réception, si bien que plusieurs envois simultanés ne peuvent pas faire descendre l’espace libre en dessous. De 0 à 1000000. |
 | `MAX_UPLOAD_GB` | `50` | La taille maximale d’un fichier que l’assistant accepte, en Go. De 0.001 à 1000000. |
 | `EXTRA_EXTENSIONS` | vide | D’autres types de fichiers à accepter, séparés par des virgules, par exemple `insp,lrv`. Chacun compte de 1 à 10 lettres ou chiffres. |
@@ -390,11 +392,11 @@ L’image définit aussi `PHLIX_CONTAINER=1`. Avec ce réglage, l’assistant re
 3. Dans `docker-compose.yml`, faites pointer la ligne qui commence par `source:` vers le nouveau dossier.
 4. Exécutez `docker compose up -d`.
 
-Les photos déjà envoyées restent où elles sont, et les téléphones ne les renvoient pas. Si vous les voulez dans le nouveau dossier, déplacez-les entre l’étape 2 et l’étape 3 : déplacez tout le contenu de l’ancien dossier de destination dans le nouveau, en conservant tels quels les dossiers qu’il contient.
+Entre l’étape 2 et l’étape 3, déplacez tout le contenu de l’ancien dossier de destination dans le nouveau, en conservant tels quels les dossiers qu’il contient. Les téléphones envoient à nouveau chaque photo qui n’est pas dans le nouveau dossier. Déplacez aussi le dossier masqué `.phlix-upload-tmp`. Pour repartir d’un dossier vide, créez-y un dossier nommé `.phlix-upload-tmp` : les téléphones envoient alors à nouveau chaque photo qu’ils contiennent encore.
 
 ### Le nom du dossier d’un téléphone
 
-Laissez-le tel quel. L’assistant continue de placer les nouvelles photos d’un téléphone dans le dossier que ce téléphone a reçu lors du jumelage. Si vous renommez ce dossier sur le serveur, l’assistant recrée l’ancien nom pour la photo suivante. Jumeler à nouveau le téléphone ne change pas non plus le dossier.
+Pour renommer le dossier d’un téléphone, renommez-le sur le serveur. L’assistant retrouve le dossier sous son nouveau nom et y place les nouvelles photos du téléphone. Ou bien, dans Phlix, choisissez Déconnecter, connectez-vous à nouveau et saisissez le nouveau nom : les nouvelles photos vont alors dans un dossier de ce nom, et les photos déjà sur le serveur restent où elles sont.
 
 ### Le port
 
@@ -402,7 +404,7 @@ Laissez-le tel quel. L’assistant continue de placer les nouvelles photos d’u
 2. Exécutez `docker compose up -d`.
 3. Donnez à chaque téléphone l’adresse de l’assistant avec le nouveau port, par exemple `https://192.168.1.10:8443`. De lui-même, Phlix cherche le port 7459.
    - Un téléphone qui n’est pas encore jumelé : dans Phlix, ouvrez Réglages > Envoi des photos et touchez Rechercher l’assistant, puis Saisir l’adresse de l’assistant. Saisissez l’adresse et touchez Vérifier cette adresse. Continuez ensuite comme dans [Connecter votre iPhone](#connecter-votre-iphone), à partir de l’étape 4.
-   - Un téléphone déjà jumelé garde l’ancienne adresse, et son écran Envoi des photos n’a pas de champ pour une nouvelle. Sur cet écran, choisissez d’abord Déconnecter. Faites ensuite ce qu’indique la ligne ci-dessus. Toute personne qui n’est pas propriétaire du serveur Plex saisit à nouveau le code de jumelage. Le téléphone garde son dossier, et rien n’est envoyé deux fois. Phlix redemande ce qu’il faut sauvegarder, avec les choix faits auparavant déjà sélectionnés.
+   - Un téléphone déjà jumelé garde l’ancienne adresse, et son écran Envoi des photos n’a pas de champ pour une nouvelle. Sur cet écran, choisissez d’abord Déconnecter. Faites ensuite ce qu’indique la ligne ci-dessus. Toute personne qui n’est pas propriétaire du serveur Plex saisit à nouveau le code de jumelage. Laissez le nom du dossier tel que Phlix l’affiche : le téléphone garde son dossier, et rien n’est envoyé deux fois. Phlix redemande ce qu’il faut sauvegarder, avec les choix faits auparavant déjà sélectionnés.
 
 ### Une autre machine
 
@@ -511,7 +513,7 @@ Lancez d’abord la vérification ci-dessus. Essayez ensuite ce qui suit, dans c
 | Le téléphone n’est pas sur votre Wi-Fi domestique. Il est peut-être sur les données cellulaires, sur un Wi-Fi invité ou sur un VPN. | Connectez le téléphone au même réseau que le serveur. Phlix ne cherche pas l’assistant par les données cellulaires. |
 | iOS ne laisse pas Phlix atteindre les appareils de votre réseau. Phlix affiche alors « iOS empêche Phlix d’accéder à votre réseau local. Activez Réseau local pour Phlix dans Réglages, puis réessayez. » | Sur l’iPhone, ouvrez Réglages > Apps > Phlix et activez Réseau local. |
 | L’assistant est à une autre adresse ou sur un autre port que Plex. | Saisissez l’adresse de l’assistant dans l’app, par exemple `https://192.168.1.10:7459`. |
-| Phlix est antérieur à la version 1.0.21. Ses Réglages n’ont alors pas de ligne Envoi des photos. | Mettez Phlix à jour vers la version 1.0.21 ou ultérieure, quand l’App Store la propose. |
+| Phlix est antérieur à la version 1.0.21. Ses Réglages n’ont alors pas de ligne Envoi des photos. | Mettez Phlix à jour vers la version 1.0.21 ou ultérieure depuis l’App Store. |
 
 ### Le navigateur n’ouvre pas la page d’état
 
@@ -593,6 +595,12 @@ Vérifiez d’abord si les fichiers arrivent. La page d’état affiche `Files s
 | --- | --- |
 | Le conteneur a été démarré sans dossier sur `/photos`, sur `/config`, ou sur les deux. L’assistant refuse alors de démarrer : les envois atterriraient dans le conteneur et seraient perdus à la prochaine mise à jour. | Démarrez l’assistant avec les deux dossiers, comme dans le fichier Compose ou la commande `docker run` ci-dessus. |
 | Les deux dossiers sont montés et le message apparaît quand même. C’est rare. Cela peut arriver quand Docker garde ses propres données sur le même disque que vos dossiers et n’utilise pas de système de fichiers distinct pour les conteneurs. | Dans `docker-compose.yml`, ajoutez la ligne `ALLOW_UNMOUNTED: "1"` sous `environment:`, et exécutez `docker compose up -d`. Envoyez ensuite une photo et vérifiez que le fichier se trouve dans votre dossier de destination sur le serveur. |
+
+### L’assistant ne démarre pas ; son journal indique que le dossier de destination est vide
+
+| Cause | Solution |
+| --- | --- |
+| L’assistant a déjà stocké des photos dans le dossier de destination, et maintenant ce dossier est vide. Le plus souvent, le partage ou le disque qui le contient n’est pas encore monté. L’assistant l’attend alors : Docker le relance sans cesse, et il démarre de lui-même dès que le dossier est de retour. | Vérifiez que le partage ou le disque est monté. Si vous avez vidé le dossier exprès, créez-y un dossier nommé `.phlix-upload-tmp`, par exemple `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. L’assistant démarre alors, et les téléphones envoient à nouveau chaque photo qu’ils contiennent encore. Sur Unraid, démarrez à nouveau le conteneur dans l’onglet Docker. |
 
 ### Le jumelage signale trop de tentatives
 

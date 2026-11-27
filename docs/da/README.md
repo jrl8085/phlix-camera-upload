@@ -2,7 +2,7 @@
 
 # Phlix Camera Upload
 
-**Beta.** Dette er serverdelen af Kameraupload, en betafunktion i appen [Phlix](https://phlixapp.com) til iPhone og iPad. Den anden del findes i Phlix 1.0.21 eller nyere under Indstillinger > Kameraupload. Hvis App Store ikke tilbyder den version endnu, er den på vej.
+**Beta.** Dette er serverdelen af Kameraupload, en betafunktion i appen [Phlix](https://phlixapp.com) til iPhone og iPad. Den anden del findes i Phlix 1.0.21 eller nyere under Indstillinger > Kameraupload. Den version er tilgængelig i App Store.
 
 **Opsætningsvejledning med billeder: https://phlixapp.com/camera-upload/**
 
@@ -23,7 +23,7 @@ Kameraupload er i beta, og appen markerer den med Beta. Behold din egen sikkerhe
 - Phlix kan sende en notifikation, når alt er sikkerhedskopieret: Slå ”Giv besked, når alt er sikkerhedskopieret” til.
 - Du vælger, hvad der sikkerhedskopieres. Fra start er Medtag videoer slået til og Medtag skærmbilleder slået fra. Ved Sikkerhedskopier vælger du Alt på denne enhed eller Kun nye fotos.
 - Når Phlix er åben, uploades nye fotos af sig selv. Når Phlix er lukket, lader iOS appen fortsætte i korte perioder, mest mens enheden oplades.
-- Hvert foto uploades én gang, sådan som det ser ud i Fotos på det tidspunkt. Et redigeret foto uploades redigeret. Et Live Photo uploades som sit stillbillede.
+- Hvert foto uploades, sådan som det ser ud i Fotos på det tidspunkt. Et redigeret foto uploades redigeret. Et Live Photo uploades som sit stillbillede.
 - På serveren har hver enhed sin egen mappe med en mappe for hvert år og hver måned. En fil beholder sit navn og sin dato. Det samme foto fra to enheder bliver gemt én gang. Intet bliver nogensinde overskrevet.
 - Når din Plex-konto ejer serveren, beder Phlix Plex om at scanne, når dine fotos er kommet frem, så de dukker op i Plex.
 - Den sletter eller ændrer aldrig noget på enheden. Det er en kopi i én retning.
@@ -46,7 +46,7 @@ Kameraupload er i beta, og appen markerer den med Beta. Behold din egen sikkerhe
   - På Ubuntu: Hvis du har installeret Docker med `sudo apt install docker.io`, så tilføj Compose med `sudo apt install docker-compose-v2`. Ubuntu 22.04 og nyere har den pakke.
   - Docker fra en Snap kan ikke starte hjælpeprogrammet. Ubuntu Server tilbyder den Snap under installationen. Kør `snap list docker` for at tjekke det. Hvis docker står på listen, så se [Docker Compose siger ”bind source path does not exist”](#docker-compose-siger-bind-source-path-does-not-exist).
 - Et fotobibliotek i Plex.
-- Phlix 1.0.21 eller nyere på en iPhone eller iPad. Du kan tjekke det ved at åbne Indstillinger i Phlix: Fra 1.0.21 er der en række Kameraupload, markeret med Beta. Hvis App Store ikke tilbyder den version endnu, er den på vej.
+- Phlix 1.0.21 eller nyere på en iPhone eller iPad. Du kan tjekke det ved at åbne Indstillinger i Phlix: Fra 1.0.21 er der en række Kameraupload, markeret med Beta. Den version er tilgængelig i App Store.
 - Telefonen og serveren på det samme hjemmenetværk.
 
 Imaget kører på 64-bit Intel og AMD, på 64-bit Arm og på 32-bit Arm (ARMv7). Det indeholder én variant til hver, og Docker vælger selv den, der passer til din maskine. [Imagets side på GitHub](https://github.com/jrl8085/phlix-camera-upload/pkgs/container/phlix-camera-upload) viser også `unknown/unknown`. Det er ikke en variant: Det er en beskrivelse af, hvordan imaget blev bygget, og hvad det indeholder.
@@ -334,12 +334,14 @@ Camera Uploads/
         IMG_1234.HEIC
 ```
 
-- **Enhedens mappe** får sit navn, når enheden danner par. Hvis to enheder beder om det samme navn, får den anden et nummer, for eksempel `iPhone 2`. En enhed, der danner par igen, beholder sin mappe.
+- **Enhedens mappe** får sit navn, når enheden danner par. Hvis to enheder beder om det samme navn, får den anden et nummer, for eksempel `iPhone 2`. En enhed, der danner par igen, beholder sin mappe, medmindre du skriver et andet navn i Phlix: Så kommer dens nye fotos i en mappe med det navn.
 - **Året og måneden** kommer fra fotoets egen dato i telefonens lokale tid. Et foto uden dato bliver sorteret efter datoen for uploaden.
 - **Filen** beholder det navn, den havde på telefonen. Hjælpeprogrammet sætter også filens ændringstidspunkt til fotoets dato.
 - **To forskellige fotos med samme navn** bliver begge gemt. Det andet får et nummer: `IMG_1234 (2).HEIC`.
 - **Det samme foto fra to telefoner** bliver gemt én gang. Hjælpeprogrammet sammenligner filernes indhold, ikke deres navne. Fotoet bliver i mappen for den telefon, der sendte det først.
-- **Filer, du flytter eller sletter** på serveren, bliver ikke efterspurgt igen. Hjælpeprogrammet fører sin egen liste over, hvad hver telefon har sendt.
+- **Et foto tæller kun som sikkerhedskopieret**, så længe dets fil ligger i uploadmappen. Hvis du sletter en fil eller en enheds hele mappe, og fotoet stadig er på enheden, uploader Phlix det igen. Phlix tjekker det, når du åbner skærmen Kameraupload, og af og til under sikkerhedskopieringen derhjemme.
+- **Sortér filer i vilkårlige mapper** inde i uploadmappen, og behold deres navne: Phlix finder dem der. Hjælpeprogrammet følger en enheds mappe, som du omdøber, og nye fotos kommer i den. En fil, som du omdøber eller flytter ud af uploadmappen, bliver uploadet igen. En fil, som du redigerer, tæller stadig. Intet bliver nogensinde overskrevet.
+- **Hvis en fil bliver ved med at forsvinde fra uploadmappen kort efter hver upload**, for eksempel fordi et program på serveren flytter nye filer et andet sted hen, sender Phlix den igen højst tre gange og viser den derefter under Kan ikke sikkerhedskopieres. Et foto, hvis mappe du har slettet, bliver aldrig vist der: Phlix sender det igen hver gang. Så hvis sådan et program også fjerner de mapper, det tømmer, gælder grænsen på tre gange aldrig, og Phlix uploader de samme fotos igen ved hver sikkerhedskopiering. Indstil programmet, så det lader mapperne blive, hvor de er. Når du opretter forbindelse igen på telefonen eller sletter den mappe, der indeholdt et foto på listen, sender Phlix også det foto igen. Hvis et foto ikke skal på serveren, så skjul det i appen Fotos: Phlix uploader aldrig skjulte fotos.
 
 Hjælpeprogrammet accepterer disse filtyper og afviser alt andet:
 
@@ -361,7 +363,7 @@ Hjælpeprogrammet virker uden nogen indstillinger. Hvis du vil ændre en, så å
 | `PAIRING` | `auto` | Hvem der må danne par. `auto`: Ejeren af Plex-serveren danner par uden kode, og alle andre skriver parringskoden. `code`: Alle skriver koden. `plex`: Kun ejeren af Plex-serveren må danne par. |
 | `PAIRING_CODE` | tom | Din egen parringskode med mindst 6 bogstaver eller cifre. Når denne er tom, laver hjælpeprogrammet en kode ved første start og beholder den. |
 | `NAME` | `Phlix Camera Upload` | Det navn, appen og statussiden viser for dette hjælpeprogram. Højst 60 tegn. |
-| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | De mapper, hjælpeprogrammet opretter i uploadmappen. Du kan bruge `{device}`, `{year}`, `{month}` og `{day}`. Ingen mappe må starte med et punktum. Med en enkelt `/` kommer alle filer direkte i uploadmappen. |
+| `PATH_TEMPLATE` | `{device}/{year}/{year}-{month}` | De mapper, hjælpeprogrammet opretter i uploadmappen. Du kan bruge `{device}`, `{year}`, `{month}` og `{day}`. Ingen mappe må starte med et punktum. Med en enkelt `/` kommer alle filer direkte i uploadmappen. Hjælpeprogrammet følger kun en enheds mappe, som du omdøber, når `{device}` er en mappe for sig uden en dato foran, som i standardværdien. |
 | `MIN_FREE_GB` | `2` | Hjælpeprogrammet afviser en upload, der ville efterlade mindre end så mange GB ledigt på disken. Det tæller de uploads med, der stadig er på vej, så flere uploads på én gang ikke kan bringe disken under denne grænse. Fra 0 til 1000000. |
 | `MAX_UPLOAD_GB` | `50` | Den største enkeltfil, hjælpeprogrammet accepterer, i GB. Fra 0.001 til 1000000. |
 | `EXTRA_EXTENSIONS` | tom | Flere filtyper, der skal accepteres, adskilt med kommaer, for eksempel `insp,lrv`. Hver er 1 til 10 bogstaver eller cifre. |
@@ -390,11 +392,11 @@ Imaget sætter også `PHLIX_CONTAINER=1`. Med den nægter hjælpeprogrammet at s
 3. Ændr i `docker-compose.yml` linjen, der starter med `source:`, til den nye mappe.
 4. Kør `docker compose up -d`.
 
-Fotos, der blev uploadet før, bliver, hvor de er, og telefonerne sender dem ikke igen. Hvis du vil have dem i den nye mappe, så flyt dem mellem trin 2 og trin 3: Flyt alt, hvad der ligger i den gamle uploadmappe, over i den nye, og behold mapperne indeni, som de er.
+Flyt mellem trin 2 og trin 3 alt, hvad der ligger i den gamle uploadmappe, over i den nye, og behold mapperne indeni, som de er. Telefonerne sender alle fotos, der ikke ligger i den nye mappe, igen. Flyt også den skjulte mappe `.phlix-upload-tmp`. Hvis du vil starte med en tom mappe, så opret en mappe ved navn `.phlix-upload-tmp` i den: Telefonerne sender så alle fotos, der stadig er på dem, igen.
 
 ### Navnet på en telefons mappe
 
-Lad det være, som det er. Hjælpeprogrammet bliver ved med at lægge en telefons nye fotos i den mappe, telefonen fik, da den dannede par. Hvis du omdøber den mappe på serveren, opretter hjælpeprogrammet en mappe med det gamle navn igen ved næste foto. Mappen ændrer sig heller ikke, hvis du danner par med telefonen igen.
+Vil du omdøbe en telefons mappe, så omdøb den på serveren. Hjælpeprogrammet finder mappen under dens nye navn og lægger telefonens nye fotos der. Eller vælg Afbryd forbindelsen i Phlix, opret forbindelse igen, og skriv det nye navn: Så kommer nye fotos i en mappe med det navn, og de fotos, der allerede er på serveren, bliver, hvor de er.
 
 ### Porten
 
@@ -402,7 +404,7 @@ Lad det være, som det er. Hjælpeprogrammet bliver ved med at lægge en telefon
 2. Kør `docker compose up -d`.
 3. Giv hver telefon hjælpeprogrammets adresse med den nye port, for eksempel `https://192.168.1.10:8443`. Phlix leder selv efter port 7459.
    - En telefon, der ikke har dannet par endnu: Åbn Indstillinger > Kameraupload i Phlix, og tryk på Søg efter hjælpeprogrammet og derefter på Indtast hjælpeprogrammets adresse. Skriv adressen, og tryk på Tjek denne adresse. Fortsæt derefter som i [Forbind din iPhone](#forbind-din-iphone) fra trin 4.
-   - En telefon, der allerede har dannet par, beholder den gamle adresse, og dens skærm Kameraupload har intet felt til en ny. Vælg først Afbryd forbindelsen på den skærm. Gør derefter det, linjen ovenfor siger. Alle, der ikke er ejer af Plex-serveren, skriver parringskoden igen. Telefonen beholder sin mappe, og intet bliver uploadet to gange. Phlix spørger igen, hvad der skal sikkerhedskopieres, med de valg, du traf før, allerede indstillet.
+   - En telefon, der allerede har dannet par, beholder den gamle adresse, og dens skærm Kameraupload har intet felt til en ny. Vælg først Afbryd forbindelsen på den skærm. Gør derefter det, linjen ovenfor siger. Alle, der ikke er ejer af Plex-serveren, skriver parringskoden igen. Lad mappenavnet stå, sådan som Phlix viser det: Telefonen beholder sin mappe, og intet bliver uploadet to gange. Phlix spørger igen, hvad der skal sikkerhedskopieres, med de valg, du traf før, allerede indstillet.
 
 ### En anden maskine
 
@@ -511,7 +513,7 @@ Kør tjekket ovenfor først. Prøv derefter følgende i denne rækkefølge. [NET
 | Telefonen er ikke på dit Wi-Fi derhjemme. Den er måske på mobildata, på et gæste-Wi-Fi eller på en VPN. | Forbind telefonen til det samme netværk som serveren. Phlix leder ikke efter hjælpeprogrammet via mobildata. |
 | iOS lader ikke Phlix nå enheder på dit netværk. Phlix siger så ”iOS holder Phlix væk fra dit lokale netværk. Slå Lokalt netværk til for Phlix i Indstillinger, og prøv så igen.” | Åbn Indstillinger > Apps > Phlix på iPhonen, og slå Lokalt netværk til. |
 | Hjælpeprogrammet er på en anden adresse eller port end Plex. | Skriv hjælpeprogrammets adresse i appen, for eksempel `https://192.168.1.10:7459`. |
-| Phlix er ældre end 1.0.21. Så har dens Indstillinger ingen række Kameraupload. | Opdater Phlix til 1.0.21 eller nyere, når App Store tilbyder den. |
+| Phlix er ældre end 1.0.21. Så har dens Indstillinger ingen række Kameraupload. | Opdater Phlix til 1.0.21 eller nyere via App Store. |
 
 ### Browseren kan ikke åbne statussiden
 
@@ -593,6 +595,12 @@ Find først ud af, om filerne kommer frem. Statussiden viser `Files stored`, og 
 | --- | --- |
 | Containeren blev startet uden en mappe på `/photos`, på `/config` eller begge. Hjælpeprogrammet nægter så at starte: Uploads ville lande inde i containeren og gå tabt ved næste opdatering. | Start hjælpeprogrammet med begge mapper som i Compose-filen eller `docker run`-kommandoen ovenfor. |
 | Begge mapper er monteret, og beskeden vises stadig. Det er sjældent. Det kan ske, når Docker har sine egne data på den samme disk som dine mapper og ikke bruger et separat filsystem til containere. | Tilføj linjen `ALLOW_UNMOUNTED: "1"` under `environment:` i `docker-compose.yml`, og kør `docker compose up -d`. Upload derefter ét foto, og tjek, at filen ligger i din uploadmappe på serveren. |
+
+### Hjælpeprogrammet starter ikke; loggen siger, at uploadmappen er tom
+
+| Årsag | Løsning |
+| --- | --- |
+| Hjælpeprogrammet har gemt fotos i uploadmappen før, og nu er mappen tom. Som regel er det share eller den disk, den ligger på, ikke monteret endnu. Hjælpeprogrammet venter så på det: Docker bliver ved med at starte det igen, og det starter af sig selv, så snart mappen er tilbage. | Tjek, at det share eller den disk er monteret. Hvis du har tømt mappen med vilje, så opret en mappe ved navn `.phlix-upload-tmp` i den, for eksempel `mkdir "/mnt/media/Photos/Camera Uploads/.phlix-upload-tmp"`. Hjælpeprogrammet starter så, og telefonerne sender alle fotos, der stadig er på dem, igen. På Unraid skal du starte containeren igen på fanen Docker. |
 
 ### Parringen siger, at der var for mange forsøg
 
